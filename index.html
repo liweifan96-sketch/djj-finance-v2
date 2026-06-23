@@ -155,6 +155,61 @@ table.grid thead tr.hsub th{top:36px;z-index:4;background:var(--surface);font-we
 table.grid thead tr.hsub th.g-sydney{background:#eff6ff}
 table.grid thead tr.hsub th.g-brisbane{background:#fff7ed}
 table.grid thead tr.hsub th.g-perth{background:#faf5ff}
+
+/* Column resize grip */
+table.grid thead th{user-select:none}
+.col-resize{
+  position:absolute;top:0;right:-3px;width:6px;height:100%;
+  cursor:col-resize;z-index:6;
+  background:transparent;
+}
+.col-resize:hover{background:var(--accent);opacity:.4}
+.col-resize:active{background:var(--accent);opacity:.7}
+
+/* Pending margin banner & row tint */
+.pending-banner{
+  display:flex;gap:12px;align-items:flex-start;
+  background:#fef3c7;border:1px solid #f59e0b;
+  border-radius:6px;padding:10px 14px;margin-bottom:12px;
+  font-size:12px;color:#78350f;
+}
+.pb-icon{font-size:18px;line-height:1.2;flex-shrink:0}
+.pb-body{flex:1;min-width:0}
+.pb-title{font-weight:500;margin-bottom:3px}
+.pb-title b{color:#b45309}
+.pb-list{font-size:11.5px;color:#92400e;line-height:1.5;word-break:break-all}
+.pb-list b{color:#78350f;font-weight:600}
+
+table.grid tr.pending-margin td{background:#fffbeb}
+table.grid tr.pending-margin td.editable{background:#fffbeb}
+table.grid tr.pending-margin td.editable:hover{background:#fef3c7}
+table.grid tr.pending-margin td.auto{background:#fef3c7}
+table.grid tr.pending-margin td.formula{background:#fef3c7}
+table.grid td.pending-icon .warn-icon{
+  position:absolute;top:50%;left:5px;transform:translateY(-50%);
+  font-size:13px;color:#d97706;
+}
+table.grid td.pending-icon .btn-delrow{display:none}
+tr.pending-margin:hover td.pending-icon .warn-icon{display:none}
+tr.pending-margin:hover td.pending-icon .btn-delrow{display:flex}
+
+/* Subtotal row (month-level summary) */
+tr.subtotal-row td{
+  background:#f0f9ff;border-top:1.5px solid #93c5fd;border-bottom:1.5px solid #93c5fd;
+  font-weight:600;
+}
+tr.subtotal-row td .cell{padding:7px 9px;color:var(--accent)}
+tr.subtotal-row td.subtotal-label .cell{font-weight:600;color:var(--accent)}
+tr.subtotal-row td.subtotal-cell .cell{font-weight:600;color:var(--accent)}
+tr.subtotal-row td.subtotal-cell.neg .cell{color:var(--neg)}
+
+/* Historical (non-editable) rows */
+tr.historical td{background:#fafafa}
+tr.historical td.editable{background:#fafafa;cursor:default}
+tr.historical td.editable:hover{background:#fafafa;box-shadow:none}
+tr.historical .btn-delrow{display:none !important}
+tr.historical.pending-margin td{background:#fef9e7}
+tr.historical td.auto, tr.historical td.formula{background:#f4f4f5}
 /* row control column (delete button) */
 table.grid th.rowctrl,table.grid td.rowctrl{
   width:26px;min-width:26px;max-width:26px;padding:0;
@@ -376,7 +431,7 @@ const SHEETS = [
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
       {key:'month', label:'月份', type:'auto-month'},
-      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'store', label:'门店', type:'text', placeholder:STORES.join("/")},
       {key:'date', label:'销售单建立时间', type:'date'},
       {key:'model', label:'机型', type:'text'},
       {key:'qty', label:'数量', type:'number'},
@@ -386,14 +441,18 @@ const SHEETS = [
       {key:'cost', label:'采购价(不含GST)', type:'money'},
       {key:'price', label:'销售价(不含GST)', type:'money'},
       {key:'margin', label:'主机毛利', type:'money', formula:row=>{
-        const p=num(row.price), c=num(row.cost);
-        if(!p && !c) return null;
-        return p - c;
+        const hasPrice = row.price!=null && row.price!=='';
+        const hasCost = row.cost!=null && row.cost!=='';
+        if(!hasPrice || !hasCost) return null;  // need BOTH to compute
+        return num(row.price) - num(row.cost);
       }},
       {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{
-        const p=num(row.price), c=num(row.cost);
+        const hasPrice = row.price!=null && row.price!=='';
+        const hasCost = row.cost!=null && row.cost!=='';
+        if(!hasPrice || !hasCost) return null;
+        const p = num(row.price);
         if(!p) return null;
-        return (p - c) / p;
+        return (p - num(row.cost)) / p;
       }},
       {key:'note', label:'备注', type:'text'},
     ],
@@ -404,7 +463,7 @@ const SHEETS = [
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
       {key:'month', label:'月份', type:'auto-month'},
-      {key:'direction', label:'流转方向', type:'dropdown', options:['悉尼→布里斯班','悉尼→珀斯']},
+      {key:'direction', label:'流转方向', type:'text', placeholder:['悉尼→布里斯班','悉尼→珀斯'].join("/")},
       {key:'from_po', label:'悉尼PO', type:'text'},
       {key:'cost', label:'采购价', type:'money'},
       {key:'to_doc', label:'对方门店单据', type:'text'},
@@ -423,7 +482,7 @@ const SHEETS = [
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
       {key:'month', label:'月份', type:'auto-month'},
-      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'store', label:'门店', type:'text', placeholder:STORES.join("/")},
       {key:'order_no', label:'订单号', type:'text'},
       {key:'date', label:'日期', type:'date'},
       {key:'salesperson', label:'销售人员', type:'text'},
@@ -444,7 +503,7 @@ const SHEETS = [
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
       {key:'month', label:'月份', type:'auto-month'},
-      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'store', label:'门店', type:'text', placeholder:STORES.join("/")},
       {key:'contract_no', label:'合同号', type:'text'},
       {key:'total', label:'总金额', type:'money'},
       {key:'remain', label:'剩余金额', type:'money'},
@@ -457,7 +516,7 @@ const SHEETS = [
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
       {key:'month', label:'月份', type:'auto-month'},
-      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'store', label:'门店', type:'text', placeholder:STORES.join("/")},
       {key:'date', label:'时间', type:'date'},
       {key:'gst', label:'GST', type:'money'},
       {key:'net', label:'不含GST', type:'money'},
@@ -474,11 +533,11 @@ const SHEETS = [
     key:'rental_eq', name:'门店租赁设备统计', en:'Rental Equipment', kind:'data',
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
-      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'store', label:'门店', type:'text', placeholder:STORES.join("/")},
       {key:'model', label:'设备型号', type:'text'},
       {key:'vin', label:'VIN', type:'text'},
       {key:'cost', label:'不含税采购价', type:'money'},
-      {key:'nature', label:'性质', type:'dropdown', options:['自有','调拨']},
+      {key:'nature', label:'性质', type:'text', placeholder:['自有','调拨'].join("/")},
       {key:'note', label:'备注', type:'text'},
     ],
     storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
@@ -489,7 +548,7 @@ const SHEETS = [
     columns:[
       {key:'serial', label:'序号', type:'auto-serial'},
       {key:'month', label:'月份', type:'auto-month'},
-      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'store', label:'门店', type:'text', placeholder:STORES.join("/")},
       {key:'quote', label:'对应报价单', type:'text'},
       {key:'model', label:'机器型号', type:'text'},
       {key:'vin', label:'VIN', type:'text'},
@@ -497,7 +556,7 @@ const SHEETS = [
       {key:'term', label:'租期', type:'text'},
       {key:'start_date', label:'租赁起始时间', type:'date'},
       {key:'invoice', label:'最新进销存发票', type:'text'},
-      {key:'status', label:'状态', type:'dropdown', options:['进行中','已结束','已退货']},
+      {key:'status', label:'状态', type:'text', placeholder:['进行中','已结束','已退货'].join("/")},
       {key:'end_date', label:'到期日', type:'date'},
       {key:'monthly_rent', label:'月租金', type:'money'},
       {key:'note', label:'备注', type:'text'},
@@ -578,8 +637,55 @@ const PL_ROWS = [
 ];
 
 /* ============================================================
-   UTILITIES
+   COLUMN WIDTHS — per-sheet persistent
    ============================================================ */
+const LS_COLW = 'djj2_colw';
+function colWidths(sheetKey){
+  try{ const all = JSON.parse(localStorage.getItem(LS_COLW) || '{}'); return all[sheetKey] || {}; }
+  catch(e){ return {}; }
+}
+function setColWidth(sheetKey, colKey, px){
+  let all = {};
+  try{ all = JSON.parse(localStorage.getItem(LS_COLW) || '{}'); }catch(e){}
+  if(!all[sheetKey]) all[sheetKey] = {};
+  all[sheetKey][colKey] = px;
+  localStorage.setItem(LS_COLW, JSON.stringify(all));
+}
+
+function installColResize(){
+  // Delegated mousedown on .col-resize handles
+  if(window.__djj_resize_installed) return;
+  window.__djj_resize_installed = true;
+  document.addEventListener('mousedown', e=>{
+    const grip = e.target.closest('.col-resize');
+    if(!grip) return;
+    e.preventDefault();
+    const th = grip.closest('th');
+    const colKey = grip.dataset.col;
+    const startX = e.clientX;
+    const startW = th.getBoundingClientRect().width;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    function onMove(ev){
+      const dx = ev.clientX - startX;
+      const newW = Math.max(40, Math.round(startW + dx));
+      th.style.width = newW + 'px';
+      th.style.minWidth = newW + 'px';
+      th.style.maxWidth = newW + 'px';
+    }
+    function onUp(){
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      const finalW = th.getBoundingClientRect().width;
+      setColWidth(STATE.sheetKey, colKey, Math.round(finalW));
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
 const $ = s => document.querySelector(s);
 function toast(msg, err=false){ const t=$('#toast'); t.textContent=msg; t.className='toast show'+(err?' err':''); setTimeout(()=>t.className='toast',2000); }
 function num(v){
@@ -624,8 +730,9 @@ const STATE = {
   month: thisMonth(),
   sheetKey: SHEETS[0].key,
   storeFilter: '全部',
-  data: {},          // data[sheetKey] = [{col1:val,col2:val,...}, ...]  (data sheets only)
-  inputs: {},        // inputs[sheetKey][rowKey][store?] = value (for recon/pl inputs)
+  monthFilter: '全部',   // '全部' = all months, or 'YYYY-MM' for specific
+  data: {},
+  inputs: {},
 };
 const LS_MONTHS = 'djj2_months';
 const LS_BOOK = m => 'djj2_book_'+m;
@@ -668,6 +775,35 @@ function saveMonth(){
   localStorage.setItem(LS_BOOK(STATE.month), JSON.stringify({data:STATE.data, inputs:STATE.inputs}));
   const months = listMonths(); if(!months.includes(STATE.month)) months.push(STATE.month);
   saveMonthsList(months);
+}
+
+/* ============================================================
+   PENDING MARGIN — sales rows with price but no cost
+   ============================================================ */
+function scanPendingMargin(){
+  // Returns array of {month, rowIndex, row} across all months
+  const result = [];
+  const months = listMonths();
+  for(const m of months){
+    let book;
+    if(m === STATE.month){
+      book = {data:STATE.data, inputs:STATE.inputs};
+    } else {
+      const raw = localStorage.getItem(LS_BOOK(m));
+      if(!raw) continue;
+      try{ book = JSON.parse(raw); }catch(e){ continue; }
+    }
+    const rows = (book.data && book.data.sales) || [];
+    rows.forEach((r,i)=>{
+      if(!r) return;
+      const hasPrice = r.price != null && r.price !== '';
+      const hasCost = r.cost != null && r.cost !== '';
+      if(hasPrice && !hasCost){
+        result.push({month:m, rowIndex:i, row:r});
+      }
+    });
+  }
+  return result;
 }
 
 /* ============================================================
@@ -797,6 +933,7 @@ function init(){
   renderTabs();
   renderSheet();
   wireUI();
+  installColResize();
   $('#loading').style.display='none';
   $('#app').style.display='flex';
 }
@@ -839,7 +976,18 @@ function renderDataSheet(sh, wrap){
       <label>门店</label>
       <select class="ctrl" id="storeFilter">
         ${opts.map(s=>`<option value="${escapeHtml(s)}"${s===STATE.storeFilter?' selected':''}>${escapeHtml(s)}${s==='全部'?'门店':''}</option>`).join('')}
-      </select></div>`;
+      </select>`;
+    // Month filter (for sheets that have a month column = auto-month)
+    const hasMonthCol = sh.columns.some(c=>c.type==='auto-month');
+    if(hasMonthCol){
+      const allMonths = listMonths().sort().reverse();
+      html += `<label style="margin-left:8px">月份</label>
+        <select class="ctrl" id="monthFilter">
+          <option value="全部"${STATE.monthFilter==='全部'?' selected':''}>全部月份</option>
+          ${allMonths.map(m=>`<option value="${m}"${m===STATE.monthFilter?' selected':''}>${monthLabel(m)}</option>`).join('')}
+        </select>`;
+    }
+    html+=`</div>`;
   }
   html += `</div>
     <div class="sheet-hint">
@@ -848,54 +996,171 @@ function renderDataSheet(sh, wrap){
       <span class="legend"><i class="fill-formula"></i>自动</span>
     </div>`;
 
+  // Pending margin banner (sales sheet only)
+  if(sh.key === 'sales'){
+    const pending = scanPendingMargin();
+    if(pending.length > 0){
+      // Group by month
+      const byMonth = {};
+      for(const p of pending){
+        if(!byMonth[p.month]) byMonth[p.month] = [];
+        byMonth[p.month].push(p);
+      }
+      const monthBits = Object.keys(byMonth).sort().map(m=>{
+        const items = byMonth[m].map(p=>{
+          const r = p.row;
+          return `${escapeHtml(r.order_no||r.model||'?')}`;
+        }).join('、');
+        return `<b>${escapeHtml(monthLabel(m))}</b>：${items}（${byMonth[m].length}条）`;
+      }).join(' &nbsp;|&nbsp; ');
+      html += `<div class="pending-banner">
+        <div class="pb-icon">⚠️</div>
+        <div class="pb-body">
+          <div class="pb-title">共 ${pending.length} 条记录待补充<b>采购价</b>（毛利暂未计算）</div>
+          <div class="pb-list">${monthBits}</div>
+        </div>
+      </div>`;
+    }
+  }
+
   html += `<div class="formula-bar" id="fbar"><span class="addr">—</span><span class="fx">点击单元格查看</span></div>`;
   html += `<div class="grid-scroll"><table class="grid">`;
 
   // Header
   html += `<thead><tr><th class="rowctrl"></th>`;
   for(const col of sh.columns){
-    html += `<th data-col="${col.key}"><div class="hcell">${escapeHtml(col.label)}</div></th>`;
+    const w = colWidths(sh.key)[col.key];
+    const style = w ? ` style="width:${w}px;min-width:${w}px;max-width:${w}px"` : '';
+    html += `<th data-col="${col.key}"${style}><div class="hcell">${escapeHtml(col.label)}</div><span class="col-resize" data-col="${col.key}"></span></th>`;
   }
   html += `</tr></thead><tbody>`;
 
-  // Rows
-  const rows = STATE.data[sh.key] || [];
+  // Rows — supports both single-month view (with subtotal) and all-months view
   const filterStore = sh.storeFilter && STATE.storeFilter!=='全部' ? STATE.storeFilter : null;
-  const visibleRows = [];
-  rows.forEach((r,i)=>{
-    if(filterStore && r.store && r.store!==filterStore) return;
-    visibleRows.push({row:r, index:i});
-  });
+  const hasMonthCol = sh.columns.some(c=>c.type==='auto-month');
 
-  // Ensure at least defaultEmptyRows trailing empty rows
-  const emptyToAdd = Math.max(0, (sh.defaultEmptyRows||1));
-  // Find last non-empty index
-  let lastDataIdx = -1;
-  rows.forEach((r,i)=>{
-    if(r && Object.keys(r).some(k=>r[k]!=null && r[k]!=='')) lastDataIdx=i;
-  });
-  // Add trailing virtual empties up to lastDataIdx+emptyToAdd
-  const needTotal = lastDataIdx + 1 + emptyToAdd;
-  while(rows.length < needTotal){ rows.push({}); }
-  STATE.data[sh.key] = rows;
+  // Decide which months to render
+  const monthsToShow = (hasMonthCol && STATE.monthFilter==='全部')
+    ? listMonths().sort()                      // all months ascending
+    : [STATE.monthFilter==='全部' ? STATE.month : STATE.monthFilter];
 
-  // Re-collect visibleRows now that we possibly added
-  const finalVisible = [];
-  let serialCounter = 0;
-  rows.forEach((r,i)=>{
-    if(filterStore && r.store && r.store!==filterStore) return;
-    serialCounter++;
-    finalVisible.push({row:r, index:i, serial:serialCounter});
-  });
+  // Load data for each month
+  function loadMonthData(m){
+    if(m === STATE.month) return STATE.data[sh.key] || [];
+    const raw = localStorage.getItem(LS_BOOK(m));
+    if(!raw) return [];
+    try{ const b = JSON.parse(raw); return (b.data && b.data[sh.key]) || []; }
+    catch(e){ return []; }
+  }
 
-  for(const {row,index,serial} of finalVisible){
-    html += `<tr class="mgrow" data-i="${index}">`;
-    html += `<td class="rowctrl"><button class="btn-delrow" data-i="${index}" title="删除此行">−</button></td>`;
-    const computed = computeDataRow(sh,row);
-    for(const col of sh.columns){
-      html += renderDataCell(sh, col, computed, row, index, serial);
+  // Cols that can be summed (money or number, but NOT formula-based)
+  const sumCols = sh.columns.filter(c => (c.type==='money'||c.type==='number') && !c.formula);
+  // Cols where we want to show "平均" (avg) instead of sum — e.g. percentage
+  const pctCols = sh.columns.filter(c => c.type==='pct');
+
+  let globalSerial = 0;
+  let firstMonthRendered = monthsToShow[0];
+  // For the *current* month, ensure trailing empty rows for input
+  const isShowingCurrentOnly = monthsToShow.length===1 && monthsToShow[0]===STATE.month;
+  let isMonthEditable = (m)=> m === STATE.month;
+
+  for(const m of monthsToShow){
+    const monthRows = loadMonthData(m);
+    // Filter by store
+    const visible = [];
+    monthRows.forEach((r,i)=>{
+      if(!r) return;
+      if(filterStore && r.store && r.store!==filterStore) return;
+      // For all-months view, skip totally empty rows
+      const hasAny = Object.keys(r).some(k=>r[k]!=null && r[k]!=='');
+      if(!hasAny && !isMonthEditable(m)) return;
+      visible.push({row:r, index:i});
+    });
+
+    // For the editable (current) month, ensure trailing empty rows
+    if(isMonthEditable(m)){
+      const emptyToAdd = Math.max(0, (sh.defaultEmptyRows||1));
+      let lastDataIdx = -1;
+      monthRows.forEach((r,i)=>{
+        if(r && Object.keys(r).some(k=>r[k]!=null && r[k]!=='')) lastDataIdx=i;
+      });
+      const needTotal = lastDataIdx + 1 + emptyToAdd;
+      while(monthRows.length < needTotal){ monthRows.push({}); }
+      STATE.data[sh.key] = monthRows;
+      // Re-collect visible to include the newly added empties
+      visible.length = 0;
+      monthRows.forEach((r,i)=>{
+        if(filterStore && r.store && r.store!==filterStore) return;
+        visible.push({row:r, index:i});
+      });
     }
-    html += `</tr>`;
+
+    if(visible.length === 0 && !isMonthEditable(m)) continue;
+
+    // Render month rows
+    for(const {row,index} of visible){
+      globalSerial++;
+      const isPending = sh.key==='sales' && row && row.price!=null && row.price!=='' && (row.cost==null || row.cost==='');
+      const rowCls = 'mgrow' + (isPending ? ' pending-margin' : '') + (isMonthEditable(m) ? '' : ' historical');
+      html += `<tr class="${rowCls}" data-month="${m}" data-i="${index}">`;
+      const showDel = isMonthEditable(m);
+      if(isPending){
+        html += `<td class="rowctrl pending-icon" title="待补充采购价"><span class="warn-icon">⚠</span>${showDel?`<button class="btn-delrow" data-i="${index}" title="删除此行">−</button>`:''}</td>`;
+      } else {
+        html += `<td class="rowctrl">${showDel?`<button class="btn-delrow" data-i="${index}" title="删除此行">−</button>`:''}</td>`;
+      }
+      // Compute formula + override auto-month to use this month
+      const computed = computeDataRow(sh,row);
+      // For auto-month column, force the value to current row's month
+      const computedWithMonth = {...computed, __rowMonth: m};
+      for(const col of sh.columns){
+        html += renderDataCell(sh, col, computedWithMonth, row, index, globalSerial, !isMonthEditable(m));
+      }
+      html += `</tr>`;
+    }
+
+    // Subtotal row for this month (only if there's at least one non-empty row)
+    const nonEmpty = visible.filter(v => v.row && Object.keys(v.row).some(k=>v.row[k]!=null && v.row[k]!==''));
+    if(nonEmpty.length > 0){
+      html += `<tr class="subtotal-row" data-month="${m}">`;
+      html += `<td class="rowctrl"></td>`;
+      let labelDone = false;
+      for(const col of sh.columns){
+        if(!labelDone && (col.type==='text' || col.type==='date')){
+          html += `<td class="subtotal-label"><div class="cell">${escapeHtml(monthLabel(m))} 合计 · ${nonEmpty.length} 单</div></td>`;
+          labelDone = true;
+        } else if(sumCols.includes(col)){
+          const total = nonEmpty.reduce((s,v)=>s+num(v.row[col.key]),0);
+          const cls = total<0 ? ' neg' : '';
+          html += `<td class="subtotal-cell num${cls}"><div class="cell">${col.type==='money'?fmtMoney(total):fmtNum(total)}</div></td>`;
+        } else if(col.formula && col.type==='money'){
+          // Sum of formula values
+          const total = nonEmpty.reduce((s,v)=>{
+            const computed = computeDataRow(sh,v.row);
+            return s + num(computed[col.key]);
+          },0);
+          const cls = total<0 ? ' neg' : '';
+          html += `<td class="subtotal-cell num${cls}"><div class="cell">${fmtMoney(total)}</div></td>`;
+        } else if(col.type==='pct' || (col.formula && col.type==='pct')){
+          // Weighted avg: sum(price-cost) / sum(price)
+          if(col.key === 'margin_pct'){
+            const totalPrice = nonEmpty.reduce((s,v)=>s+num(v.row.price),0);
+            const totalCost  = nonEmpty.reduce((s,v)=>s+num(v.row.cost),0);
+            const avg = totalPrice ? (totalPrice-totalCost)/totalPrice : null;
+            const cls = avg!=null && avg<0 ? ' neg' : '';
+            html += `<td class="subtotal-cell num pct${cls}"><div class="cell">${avg!=null?fmtPct(avg):''}</div></td>`;
+          } else {
+            html += `<td class="subtotal-cell"></td>`;
+          }
+        } else if(col.type==='number' && col.key==='qty'){
+          const total = nonEmpty.reduce((s,v)=>s+num(v.row[col.key]),0);
+          html += `<td class="subtotal-cell num"><div class="cell">${fmtNum(total)}</div></td>`;
+        } else {
+          html += `<td class="subtotal-cell"></td>`;
+        }
+      }
+      html += `</tr>`;
+    }
   }
 
   // ➕ button
@@ -932,23 +1197,21 @@ function renderDataSheet(sh, wrap){
   attachDataHandlers(sh);
 }
 
-function renderDataCell(sh, col, computed, raw, rowIdx, serial){
+function renderDataCell(sh, col, computed, raw, rowIdx, serial, historicalReadonly){
   const val = computed[col.key];
+  const rowMonth = computed.__rowMonth || STATE.month;
   const isAuto = col.type==='auto-serial' || col.type==='auto-month' || col.formula;
-  const isText = col.type==='text' || col.type==='date' || col.type==='dropdown' || col.type==='auto-month';
+  const isText = col.type==='text' || col.type==='date' || col.type==='auto-month';
   const isMoney = col.type==='money';
   const isPct = col.type==='pct';
   const isNumber = col.type==='number';
-  const isDropdown = col.type==='dropdown';
-  const editable = !isAuto;
+  const editable = !isAuto && !historicalReadonly;
 
   let display = '';
   if(col.type==='auto-serial'){
-    // Only show serial if row has any data OR it's within default empty range
-    const hasData = Object.keys(raw).some(k=>raw[k]!=null && raw[k]!=='');
-    display = serial;  // always show serial number for visible rows
+    display = serial;
   } else if(col.type==='auto-month'){
-    display = monthLabel(STATE.month);
+    display = monthLabel(rowMonth);
   } else if(val===null||val===undefined||val===''){
     display = '';
   } else if(isPct){
@@ -966,8 +1229,8 @@ function renderDataCell(sh, col, computed, raw, rowIdx, serial){
   else cls += ' num';
   if(isAuto) cls += ' auto';
   if(col.formula) cls += ' formula';
-  if(isDropdown) cls += ' dropdown';
   if(editable) cls += ' editable';
+  if(historicalReadonly) cls += ' historical';
 
   let extra='';
   if(typeof val==='number' && val<0) extra=' neg';
@@ -1007,20 +1270,75 @@ function attachDataHandlers(sh){
     if(e.target.closest('input.finput')) return;
     const td = e.target.closest('td');
     if(!td || td.classList.contains('rowctrl')) return;
-    if(td.closest('tr.addrow') || td.closest('tr.footer-row')) return;
+    if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
+    if(td.closest('tr.historical')) return;
     selectCell(td);
-    if(td.classList.contains('dropdown') && td.classList.contains('editable')){
-      beginEditData(sh, td);
-    }
   });
 
   tbody.addEventListener('dblclick', e=>{
     const td = e.target.closest('td');
     if(!td || !td.classList.contains('editable')) return;
-    if(td.classList.contains('dropdown')) return;
-    if(td.closest('tr.addrow') || td.closest('tr.footer-row')) return;
+    if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
+    if(td.closest('tr.historical')) return;
     beginEditData(sh, td);
   });
+
+  // Keyboard: Delete/Backspace clears, Enter/F2 enters edit, direct typing replaces
+  // Listen on document so it fires even if focus isn't on a cell
+  if(!window.__djj_kbd_installed){
+    window.__djj_kbd_installed = true;
+    document.addEventListener('keydown', e=>{
+      // Skip if user is editing (input focused) or in a form control
+      if(document.querySelector('td.editing')) return;
+      if(e.target.matches('input, select, textarea, [contenteditable]')) return;
+      const td = document.querySelector('td.sel');
+      if(!td) return;
+      const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
+      if(!sh || sh.kind!=='data') return;
+      if(!td.classList.contains('editable')) return;
+
+      const key = e.key;
+      if(key==='Delete' || key==='Backspace'){
+        e.preventDefault();
+        const i = +td.dataset.i, colKey = td.dataset.col;
+        if(STATE.data[sh.key] && STATE.data[sh.key][i]){
+          delete STATE.data[sh.key][i][colKey];
+          saveMonth(); renderSheet();
+          // Restore selection on the same cell after re-render
+          requestAnimationFrame(()=>{
+            const newTd = document.querySelector(`td[data-i="${i}"][data-col="${colKey}"]`);
+            if(newTd) selectCell(newTd);
+          });
+        }
+        return;
+      }
+      if(key==='Enter' || key==='F2'){
+        e.preventDefault();
+        beginEditData(sh, td);
+        return;
+      }
+      // Direct typing: any printable single char starts editing & overwrites
+      if(key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
+        e.preventDefault();
+        beginEditData(sh, td, key);
+        return;
+      }
+      // Arrow key navigation
+      const moves = {ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1]};
+      if(moves[key]){
+        e.preventDefault();
+        const [dr,dc] = moves[key];
+        const i = +td.dataset.i, colKey = td.dataset.col;
+        // Find current col index
+        const colIdx = sh.columns.findIndex(c=>c.key===colKey);
+        const newColIdx = Math.max(0, Math.min(sh.columns.length-1, colIdx+dc));
+        const newRowI = Math.max(0, i+dr);
+        const newCol = sh.columns[newColIdx];
+        const newTd = document.querySelector(`td[data-i="${newRowI}"][data-col="${newCol.key}"]`);
+        if(newTd) selectCell(newTd);
+      }
+    });
+  }
 
   tbody.querySelectorAll('input.finput').forEach(inp=>{
     inp.addEventListener('input', e=>{
@@ -1032,6 +1350,8 @@ function attachDataHandlers(sh){
 
   const sf = $('#storeFilter');
   if(sf) sf.onchange = e=>{ STATE.storeFilter = e.target.value; renderSheet(); };
+  const mf = $('#monthFilter');
+  if(mf) mf.onchange = e=>{ STATE.monthFilter = e.target.value; renderSheet(); };
 
   // Paste handler: paste tabular data (TSV from Excel/Lark/Sheets) into multiple cells
   // Triggered when a cell is selected and Ctrl/Cmd+V is pressed (and not inside an editor).
@@ -1150,37 +1470,25 @@ function selectCell(td){
   }
 }
 
-function beginEditData(sh, td){
+function beginEditData(sh, td, startWith){
   const i = +td.dataset.i;
   const colKey = td.dataset.col;
   const col = sh.columns.find(c=>c.key===colKey);
   if(!col) return;
   const row = (STATE.data[sh.key]||[])[i] || {};
-  const cur = row[colKey] !== undefined ? row[colKey] : '';
+  const cur = startWith != null ? startWith : (row[colKey] !== undefined ? row[colKey] : '');
 
   td.classList.add('editing');
 
-  if(col.type==='dropdown'){
-    const opts = ['',...(col.options||[])].map(o=>`<option value="${escapeHtml(o)}"${o===cur?' selected':''}>${escapeHtml(o||'— 选择 —')}</option>`).join('');
-    td.innerHTML = `<select class="editor">${opts}</select>`;
-    const sel = td.querySelector('select');
-    let committed=false;
-    const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
-      if(save){ setCell(sh,i,colKey,sel.value); } else { renderSheet(); } };
-    sel.addEventListener('change',()=>commit(true));
-    sel.addEventListener('keydown',ev=>{ if(ev.key==='Escape') commit(false); });
-    // Defer focus + blur listener until after the click event finishes,
-    // so the click won't immediately blur the select.
-    setTimeout(()=>{
-      sel.focus();
-      sel.addEventListener('blur',()=>commit(true));
-    }, 0);
-    return;
-  }
-
   const inputType = col.type==='date' ? 'date' : 'text';
-  td.innerHTML = `<input class="editor" type="${inputType}" value="${escapeHtml(cur===null?'':String(cur))}" />`;
-  const inp = td.querySelector('input'); inp.focus(); if(col.type!=='date') inp.select();
+  const ph = col.placeholder ? ` placeholder="${escapeHtml(col.placeholder)}"` : '';
+  td.innerHTML = `<input class="editor" type="${inputType}" value="${escapeHtml(cur===null?'':String(cur))}"${ph} />`;
+  const inp = td.querySelector('input');
+  inp.focus();
+  if(col.type!=='date' && startWith == null) inp.select();
+  // If startWith provided, position cursor at end
+  if(startWith != null && col.type!=='date') inp.setSelectionRange(inp.value.length, inp.value.length);
+
   let committed=false;
   const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
     if(save){ setCell(sh,i,colKey,inp.value); } else { renderSheet(); } };
