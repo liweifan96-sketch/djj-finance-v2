@@ -382,12 +382,19 @@ const SHEETS = [
       {key:'qty', label:'数量', type:'number'},
       {key:'order_no', label:'单号', type:'text'},
       {key:'salesperson', label:'销售人员', type:'text'},
-      {key:'total_gst', label:'Total Amount(含GST)', type:'money'},
       {key:'vin', label:'车架号', type:'text'},
       {key:'cost', label:'采购价(不含GST)', type:'money'},
       {key:'price', label:'销售价(不含GST)', type:'money'},
-      {key:'margin', label:'主机毛利', type:'money', formula:row=>(num(row.price)-num(row.cost))},
-      {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{const p=num(row.price);return p?(num(row.price)-num(row.cost))/p:null;}},
+      {key:'margin', label:'主机毛利', type:'money', formula:row=>{
+        const p=num(row.price), c=num(row.cost);
+        if(!p && !c) return null;
+        return p - c;
+      }},
+      {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{
+        const p=num(row.price), c=num(row.cost);
+        if(!p) return null;
+        return (p - c) / p;
+      }},
       {key:'note', label:'备注', type:'text'},
     ],
     storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
@@ -402,7 +409,11 @@ const SHEETS = [
       {key:'cost', label:'采购价', type:'money'},
       {key:'to_doc', label:'对方门店单据', type:'text'},
       {key:'transfer_price', label:'流转价', type:'money'},
-      {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{const t=num(row.transfer_price);return t?(num(row.transfer_price)-num(row.cost))/t:null;}},
+      {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{
+        const t=num(row.transfer_price), c=num(row.cost);
+        if(!t) return null;
+        return (t - c) / t;
+      }},
       {key:'note', label:'备注', type:'text'},
     ],
     addRowButton:true, defaultEmptyRows:1,
@@ -418,7 +429,11 @@ const SHEETS = [
       {key:'salesperson', label:'销售人员', type:'text'},
       {key:'total', label:'销售单全款', type:'money'},
       {key:'received', label:'已收款项', type:'money'},
-      {key:'remain', label:'剩余应收款', type:'money', formula:row=>num(row.total)-num(row.received)},
+      {key:'remain', label:'剩余应收款', type:'money', formula:row=>{
+        const t=num(row.total), r=num(row.received);
+        if(!t && !r) return null;
+        return t - r;
+      }},
       {key:'system_ar', label:'系统体现应收款', type:'money'},
       {key:'note', label:'备注', type:'text'},
     ],
@@ -567,7 +582,15 @@ const PL_ROWS = [
    ============================================================ */
 const $ = s => document.querySelector(s);
 function toast(msg, err=false){ const t=$('#toast'); t.textContent=msg; t.className='toast show'+(err?' err':''); setTimeout(()=>t.className='toast',2000); }
-function num(v){ if(v===null||v===undefined||v==='') return 0; const n=Number(v); return isNaN(n)?0:n; }
+function num(v){
+  if(v===null||v===undefined||v==='') return 0;
+  if(typeof v==='number') return isNaN(v)?0:v;
+  // Strip $, commas, spaces from strings before parsing
+  const cleaned = String(v).replace(/[$,\s]/g,'').trim();
+  if(cleaned==='') return 0;
+  const n = Number(cleaned);
+  return isNaN(n) ? 0 : n;
+}
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 function fmtMoney(v){
   if(v===null||v===undefined||v==='') return '';
@@ -1009,6 +1032,108 @@ function attachDataHandlers(sh){
 
   const sf = $('#storeFilter');
   if(sf) sf.onchange = e=>{ STATE.storeFilter = e.target.value; renderSheet(); };
+
+  // Paste handler: paste tabular data (TSV from Excel/Lark/Sheets) into multiple cells
+  // Triggered when a cell is selected and Ctrl/Cmd+V is pressed (and not inside an editor).
+  document.addEventListener('paste', e=>{
+    // Skip if user is editing a cell or inputting in a form field
+    if(document.querySelector('.editing input, .editing select')) return;
+    if(e.target.matches('input, select, textarea')) return;
+    const selTd = document.querySelector('td.sel');
+    if(!selTd) return;
+    // Only handle within a data sheet
+    const curSh = SHEETS.find(s=>s.key===STATE.sheetKey);
+    if(!curSh || curSh.kind!=='data') return;
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if(!text) return;
+    handlePaste(curSh, selTd, text);
+  });
+}
+
+function handlePaste(sh, anchorTd, text){
+  // Parse clipboard text as TSV (Excel/Lark/Sheets default)
+  // Strip trailing newline, split by \n, then by \t
+  const lines = text.replace(/\r\n/g,'\n').replace(/\n+$/,'').split('\n');
+  const grid = lines.map(line => line.split('\t'));
+  if(!grid.length || !grid[0].length) return;
+
+  const startRow = +anchorTd.dataset.i;
+  const startCol = anchorTd.dataset.col;
+  // Find column index in sh.columns
+  const colIdx = sh.columns.findIndex(c => c.key===startCol);
+  if(colIdx < 0) return;
+
+  // Determine writable columns starting from colIdx (skip auto cols)
+  const writableCols = [];
+  for(let i=colIdx; i<sh.columns.length; i++){
+    const c = sh.columns[i];
+    if(c.type==='auto-serial' || c.type==='auto-month' || c.formula){
+      writableCols.push(null);  // placeholder — will skip during paste
+    } else {
+      writableCols.push(c);
+    }
+  }
+
+  // Ensure data array has enough rows
+  if(!STATE.data[sh.key]) STATE.data[sh.key] = [];
+  while(STATE.data[sh.key].length < startRow + grid.length){
+    STATE.data[sh.key].push({});
+  }
+
+  // Paste cells
+  let pastedCells = 0;
+  for(let r=0; r<grid.length; r++){
+    const rowVals = grid[r];
+    for(let c=0; c<rowVals.length && c<writableCols.length; c++){
+      const col = writableCols[c];
+      if(!col) continue;  // auto column, skip
+      const raw = rowVals[c].trim();
+      const targetRow = startRow + r;
+      if(raw === ''){
+        delete STATE.data[sh.key][targetRow][col.key];
+      } else {
+        let parsed = raw;
+        if(col.type==='money' || col.type==='number'){
+          const cleaned = raw.replace(/[$,\s]/g,'');
+          const n = Number(cleaned);
+          if(!isNaN(n)) parsed = n;
+        } else if(col.type==='date'){
+          // Try to normalize common date formats to YYYY-MM-DD
+          const d = parseDate(raw);
+          if(d) parsed = d;
+        } else if(col.type==='dropdown'){
+          // Only accept if matches options (case insensitive)
+          const match = (col.options||[]).find(o => o.toLowerCase()===raw.toLowerCase());
+          if(match) parsed = match;
+        }
+        STATE.data[sh.key][targetRow][col.key] = parsed;
+      }
+      pastedCells++;
+    }
+  }
+
+  saveMonth(); renderSheet();
+  toast(`粘贴 ${grid.length} 行，${pastedCells} 个单元格`);
+}
+
+function parseDate(s){
+  // Accept: 2026-05-04, 2026/5/4, 2026.5.4, 5/4/2026 etc
+  // Returns YYYY-MM-DD or null
+  s = s.trim();
+  // Already ISO
+  if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)){
+    const [y,m,d] = s.split('-').map(Number);
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+  // YYYY/M/D or YYYY.M.D
+  let m = s.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/);
+  if(m) return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+  // M/D/YYYY
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${String(+m[1]).padStart(2,'0')}-${String(+m[2]).padStart(2,'0')}`;
+  // YYYY/M/D zero-pad
+  return null;
 }
 
 function selectCell(td){
@@ -1038,13 +1163,18 @@ function beginEditData(sh, td){
   if(col.type==='dropdown'){
     const opts = ['',...(col.options||[])].map(o=>`<option value="${escapeHtml(o)}"${o===cur?' selected':''}>${escapeHtml(o||'— 选择 —')}</option>`).join('');
     td.innerHTML = `<select class="editor">${opts}</select>`;
-    const sel = td.querySelector('select'); sel.focus();
+    const sel = td.querySelector('select');
     let committed=false;
     const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
       if(save){ setCell(sh,i,colKey,sel.value); } else { renderSheet(); } };
     sel.addEventListener('change',()=>commit(true));
-    sel.addEventListener('blur',()=>commit(true));
     sel.addEventListener('keydown',ev=>{ if(ev.key==='Escape') commit(false); });
+    // Defer focus + blur listener until after the click event finishes,
+    // so the click won't immediately blur the select.
+    setTimeout(()=>{
+      sel.focus();
+      sel.addEventListener('blur',()=>commit(true));
+    }, 0);
     return;
   }
 
@@ -1068,7 +1198,9 @@ function setCell(sh, rowIdx, colKey, value){
   const col = sh.columns.find(c=>c.key===colKey);
   let parsed = value;
   if(value !== '' && (col.type==='money' || col.type==='number')){
-    const n = Number(value); if(!isNaN(n)) parsed = n;
+    // Strip $, commas, spaces before parsing
+    const cleaned = String(value).replace(/[$,\s]/g,'').trim();
+    const n = Number(cleaned); if(!isNaN(n) && cleaned!=='') parsed = n;
   }
   if(value===''){ delete STATE.data[sh.key][rowIdx][colKey]; }
   else { STATE.data[sh.key][rowIdx][colKey] = parsed; }
