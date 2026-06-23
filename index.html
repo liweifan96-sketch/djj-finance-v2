@@ -245,7 +245,8 @@ table.grid td.auto .cell{color:var(--ink-mute);font-style:italic;font-size:11.5p
 table.grid td.editable{background:var(--bg);cursor:text}
 table.grid td.editable:hover{background:var(--accent-mute);box-shadow:inset 0 0 0 1px var(--accent-soft)}
 table.grid td.editing{box-shadow:inset 0 0 0 2px var(--accent);background:var(--bg)}
-table.grid td.sel{box-shadow:inset 0 0 0 1.5px var(--accent)}
+table.grid td.sel{background:var(--accent-mute)!important}
+table.grid td.sel-anchor{box-shadow:inset 0 0 0 1.5px var(--accent)}
 table.grid td.dropdown.editable .cell::after{
   content:'▾';color:var(--ink-faint);margin-left:auto;font-size:10px;padding-left:6px;
 }
@@ -1272,8 +1273,39 @@ function attachDataHandlers(sh){
     if(!td || td.classList.contains('rowctrl')) return;
     if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
     if(td.closest('tr.historical')) return;
+    // Shift+click: select range from current anchor to this cell
+    if(e.shiftKey){
+      const anchor = document.querySelector('td.sel');
+      if(anchor && anchor !== td){
+        selectRange(anchor, td);
+        return;
+      }
+    }
     selectCell(td);
   });
+
+  // Mouse-drag selection (mousedown on cell, mousemove extends, mouseup ends)
+  let dragAnchor = null;
+  tbody.addEventListener('mousedown', e=>{
+    if(e.button !== 0) return;  // left button only
+    const td = e.target.closest('td');
+    if(!td || td.classList.contains('rowctrl')) return;
+    if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
+    if(td.closest('tr.historical')) return;
+    if(e.target.closest('.col-resize, button, input, select')) return;
+    if(e.shiftKey) return;  // shift handled in click
+    dragAnchor = td;
+  });
+  tbody.addEventListener('mousemove', e=>{
+    if(!dragAnchor || e.buttons !== 1) return;
+    const td = e.target.closest('td');
+    if(!td || td === dragAnchor) return;
+    if(td.closest('tr.historical')) return;
+    if(td.classList.contains('rowctrl')) return;
+    selectRange(dragAnchor, td);
+    e.preventDefault();  // prevent text selection
+  });
+  document.addEventListener('mouseup', ()=>{ dragAnchor = null; });
 
   tbody.addEventListener('dblclick', e=>{
     const td = e.target.closest('td');
@@ -1285,33 +1317,50 @@ function attachDataHandlers(sh){
 
   // Keyboard: Delete/Backspace clears, Enter/F2 enters edit, direct typing replaces
   // Listen on document so it fires even if focus isn't on a cell
+  // CAPTURE phase ensures we intercept before browser default (e.g. Backspace = back nav)
   if(!window.__djj_kbd_installed){
     window.__djj_kbd_installed = true;
     document.addEventListener('keydown', e=>{
       // Skip if user is editing (input focused) or in a form control
       if(document.querySelector('td.editing')) return;
-      if(e.target.matches('input, select, textarea, [contenteditable]')) return;
+      if(e.target && typeof e.target.matches === 'function' && e.target.matches('input, select, textarea, [contenteditable]')) return;
       const td = document.querySelector('td.sel');
       if(!td) return;
       const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
       if(!sh || sh.kind!=='data') return;
-      if(!td.classList.contains('editable')) return;
 
       const key = e.key;
-      if(key==='Delete' || key==='Backspace'){
+      // Always prevent default for Backspace if we have a selection (to stop browser back-navigation)
+      if(key==='Backspace' || key==='Delete'){
         e.preventDefault();
-        const i = +td.dataset.i, colKey = td.dataset.col;
-        if(STATE.data[sh.key] && STATE.data[sh.key][i]){
-          delete STATE.data[sh.key][i][colKey];
+        e.stopPropagation();
+        // Batch delete: if multiple cells are selected, clear all
+        const selectedCells = document.querySelectorAll('td.sel');
+        let changedAny = false;
+        for(const cell of selectedCells){
+          if(!cell.classList.contains('editable')) continue;
+          if(cell.closest('tr.historical')) continue;
+          const i = +cell.dataset.i, colKey = cell.dataset.col;
+          if(STATE.data[sh.key] && STATE.data[sh.key][i] && STATE.data[sh.key][i][colKey] != null){
+            delete STATE.data[sh.key][i][colKey];
+            changedAny = true;
+          }
+        }
+        if(changedAny){
           saveMonth(); renderSheet();
-          // Restore selection on the same cell after re-render
-          requestAnimationFrame(()=>{
-            const newTd = document.querySelector(`td[data-i="${i}"][data-col="${colKey}"]`);
+          // Try to restore selection on the originally-anchored cell
+          const restore = ()=>{
+            const newTd = document.querySelector(`td[data-i="${td.dataset.i}"][data-col="${td.dataset.col}"]`);
             if(newTd) selectCell(newTd);
-          });
+          };
+          if(typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(restore);
+          else setTimeout(restore, 0);
         }
         return;
       }
+
+      if(!td.classList.contains('editable')) return;
+
       if(key==='Enter' || key==='F2'){
         e.preventDefault();
         beginEditData(sh, td);
@@ -1329,7 +1378,6 @@ function attachDataHandlers(sh){
         e.preventDefault();
         const [dr,dc] = moves[key];
         const i = +td.dataset.i, colKey = td.dataset.col;
-        // Find current col index
         const colIdx = sh.columns.findIndex(c=>c.key===colKey);
         const newColIdx = Math.max(0, Math.min(sh.columns.length-1, colIdx+dc));
         const newRowI = Math.max(0, i+dr);
@@ -1337,7 +1385,16 @@ function attachDataHandlers(sh){
         const newTd = document.querySelector(`td[data-i="${newRowI}"][data-col="${newCol.key}"]`);
         if(newTd) selectCell(newTd);
       }
-    });
+    }, true);   // <-- USE CAPTURE phase
+
+    // Also catch Backspace specifically at document level to prevent back nav
+    window.addEventListener('keydown', e=>{
+      if(e.key==='Backspace' && (!e.target || typeof e.target.matches !== 'function' || !e.target.matches('input, select, textarea, [contenteditable]'))){
+        if(document.querySelector('td.sel') && !document.querySelector('td.editing')){
+          e.preventDefault();
+        }
+      }
+    }, true);
   }
 
   tbody.querySelectorAll('input.finput').forEach(inp=>{
@@ -1459,6 +1516,7 @@ function parseDate(s){
 function selectCell(td){
   document.querySelectorAll('td.sel').forEach(x=>x.classList.remove('sel'));
   td.classList.add('sel');
+  td.classList.add('sel-anchor');
   const fbar = $('#fbar');
   const colKey = td.dataset.col;
   const i = td.dataset.i;
@@ -1467,6 +1525,33 @@ function selectCell(td){
     const col = sh.columns ? sh.columns.find(c=>c.key===colKey) : null;
     const lbl = col ? col.label : colKey;
     fbar.innerHTML = `<span class="addr">行${+i+1} · ${escapeHtml(lbl||colKey||'')}</span><span class="fx">${escapeHtml(td.textContent.trim() || '（空）')}</span>`;
+  }
+}
+
+function selectRange(anchor, focus){
+  // Select rectangular range between anchor and focus cells
+  document.querySelectorAll('td.sel').forEach(x=>x.classList.remove('sel'));
+  const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
+  if(!sh) return;
+  const anchorI = +anchor.dataset.i, focusI = +focus.dataset.i;
+  const anchorColIdx = sh.columns.findIndex(c=>c.key===anchor.dataset.col);
+  const focusColIdx = sh.columns.findIndex(c=>c.key===focus.dataset.col);
+  const r1 = Math.min(anchorI, focusI), r2 = Math.max(anchorI, focusI);
+  const c1 = Math.min(anchorColIdx, focusColIdx), c2 = Math.max(anchorColIdx, focusColIdx);
+  for(let i=r1; i<=r2; i++){
+    for(let c=c1; c<=c2; c++){
+      const col = sh.columns[c];
+      const cell = document.querySelector(`tr.mgrow:not(.historical) td[data-i="${i}"][data-col="${col.key}"]`);
+      if(cell) cell.classList.add('sel');
+    }
+  }
+  // Keep anchor marker (the original anchor cell stays)
+  document.querySelectorAll('td.sel-anchor').forEach(x=>x.classList.remove('sel-anchor'));
+  anchor.classList.add('sel-anchor');
+  const fbar = $('#fbar');
+  if(fbar){
+    const count = document.querySelectorAll('td.sel').length;
+    fbar.innerHTML = `<span class="addr">已选 ${count} 单元格</span><span class="fx">按 Delete 批量清空</span>`;
   }
 }
 
