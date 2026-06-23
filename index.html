@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DJJ 财务报表</title>
+<script src="https://cdn.jsdelivr.net/npm/hyperformula@2.7.0/dist/hyperformula.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#ffffff;
+  --surface:#fafafa;
+  --surface-2:#f4f4f5;
+  --border:#e4e4e7;
+  --border-strong:#d4d4d8;
+  --ink:#18181b;
+  --ink-soft:#52525b;
+  --ink-mute:#71717a;
+  --ink-faint:#a1a1aa;
+  --accent:#1e40af;
+  --accent-soft:#dbeafe;
+  --accent-mute:#eff6ff;
+  --pos:#15803d;
+  --neg:#b91c1c;
+  --warn:#a16207;
+  --sydney:#dbeafe;     /* light blue */
+  --brisbane:#fed7aa;   /* light orange */
+  --perth:#e9d5ff;      /* light purple */
+  --sydney-ink:#1e3a8a;
+  --brisbane-ink:#7c2d12;
+  --perth-ink:#581c87;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg);color:var(--ink);
+  font-size:13px;line-height:1.5;
+}
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ---------- Top bar ---------- */
+.topbar{
+  display:flex;align-items:center;gap:18px;
+  padding:10px 20px;background:var(--bg);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand .logo{font-weight:600;font-size:15px;letter-spacing:.5px;color:var(--accent)}
+.brand .sub{font-size:11px;color:var(--ink-faint);letter-spacing:.3px}
+.spacer{flex:1}
+
+.ctrl{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;color:var(--ink-soft);font-family:inherit;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:5px 10px;cursor:pointer;
+  transition:.12s;outline:none;
+}
+.ctrl:hover{border-color:var(--border-strong);background:var(--surface)}
+.ctrl:focus{border-color:var(--accent)}
+.ctrl.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctrl.primary:hover{background:#1d4ed8}
+.ctrl.ghost{background:transparent}
+.ctrl:disabled{opacity:.5;cursor:not-allowed}
+
+.month-picker{display:inline-flex;align-items:center;gap:8px}
+.month-picker label{font-size:11px;color:var(--ink-faint)}
+
+.sync-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;color:var(--ink-mute);padding:4px 9px;
+  border-radius:99px;background:var(--surface);border:1px solid var(--border);
+}
+.sync-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-faint)}
+.sync-pill.ok .dot{background:var(--pos)}
+.sync-pill.saving .dot{background:var(--warn);animation:pulse 1s infinite}
+.sync-pill.err .dot{background:var(--neg)}
+@keyframes pulse{50%{opacity:.4}}
+
+/* ---------- Tabs ---------- */
+.tabs-wrap{border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.tabs{
+  display:flex;gap:0;padding:0 14px;max-width:100%;overflow-x:auto;
+}
+.tab{
+  padding:10px 14px;font-size:12.5px;font-weight:500;color:var(--ink-mute);
+  border:none;background:transparent;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:.12s;font-family:inherit;
+}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .badge{
+  font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px;
+  background:var(--surface-2);color:var(--ink-faint);vertical-align:1px;
+  font-weight:400;
+}
+.tab.active .badge{background:var(--accent-mute);color:var(--accent)}
+
+/* ---------- Workspace ---------- */
+.workspace{flex:1;overflow:auto;padding:24px;background:var(--surface)}
+.sheet-wrap{max-width:100%;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+
+.sheet-head{
+  display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap;
+}
+.sheet-head h2{font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-.2px}
+.sheet-head .en{font-size:11.5px;color:var(--ink-faint)}
+.sheet-head .tag{
+  font-size:10.5px;padding:2px 8px;border-radius:99px;font-weight:500;
+  background:var(--surface-2);color:var(--ink-soft);
+}
+.sheet-head .tag.auto{background:var(--accent-mute);color:var(--accent)}
+.sheet-head .tag.input{background:#f0fdf4;color:var(--pos)}
+.store-filter{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+.store-filter label{font-size:11px;color:var(--ink-faint)}
+
+.sheet-hint{font-size:11.5px;color:var(--ink-mute);margin-bottom:14px;display:flex;gap:14px;flex-wrap:wrap}
+.sheet-hint b{color:var(--ink-soft);font-weight:500}
+.legend{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block;border:1px solid var(--border)}
+.legend i.fill-input{background:#fff}
+.legend i.fill-formula{background:#f0f9ff}
+.legend i.fill-linked{background:#ecfdf5}
+
+/* ---------- Grid ---------- */
+.grid-scroll{
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  overflow:auto;max-height:calc(100vh - 230px);
+}
+table.grid{border-collapse:separate;border-spacing:0;font-size:12.5px;width:100%}
+table.grid th,table.grid td{
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  padding:0;height:30px;position:relative;background:var(--bg);
+}
+table.grid th{
+  position:sticky;top:0;z-index:5;background:var(--surface);
+  color:var(--ink-soft);font-weight:500;text-align:center;padding:0;
+}
+table.grid thead .hcell{
+  padding:7px 9px;font-size:11.5px;line-height:1.25;
+  display:flex;align-items:center;justify-content:center;min-height:28px;
+  white-space:normal;
+}
+/* group headers */
+table.grid thead tr.hgroup th.g-sydney{background:var(--sydney);color:var(--sydney-ink)}
+table.grid thead tr.hgroup th.g-brisbane{background:var(--brisbane);color:var(--brisbane-ink)}
+table.grid thead tr.hgroup th.g-perth{background:var(--perth);color:var(--perth-ink)}
+table.grid thead tr.hgroup th.g-neutral{background:var(--surface-2);color:var(--ink-soft)}
+table.grid thead tr.hsub th{top:36px;z-index:4;background:var(--surface);font-weight:500}
+table.grid thead tr.hsub th.g-sydney{background:#eff6ff}
+table.grid thead tr.hsub th.g-brisbane{background:#fff7ed}
+table.grid thead tr.hsub th.g-perth{background:#faf5ff}
+/* row control column (delete button) */
+table.grid th.rowctrl,table.grid td.rowctrl{
+  width:26px;min-width:26px;max-width:26px;padding:0;
+  background:var(--bg);border-right:none;
+}
+table.grid td.rowctrl{position:relative}
+.btn-delrow{
+  position:absolute;top:50%;left:4px;transform:translateY(-50%);
+  width:18px;height:18px;border-radius:50%;border:1px solid var(--border);
+  background:var(--bg);color:var(--ink-faint);font-size:14px;line-height:1;
+  cursor:pointer;display:none;align-items:center;justify-content:center;
+  padding:0;transition:.12s;
+}
+tr.mgrow:hover .btn-delrow{display:flex}
+.btn-delrow:hover{border-color:var(--neg);color:var(--neg);background:#fef2f2}
+
+table.grid td .cell{
+  width:100%;height:100%;padding:5px 9px;display:flex;align-items:center;
+  min-height:30px;white-space:pre;overflow:hidden;
+}
+table.grid td.label .cell{white-space:normal;line-height:1.3;font-size:12px}
+table.grid td.num .cell{
+  justify-content:flex-end;
+  font-family:'SF Mono',Menlo,Consolas,monospace;
+  font-variant-numeric:tabular-nums;font-size:12px;
+}
+table.grid td.formula{background:#f0f9ff}
+table.grid td.formula .cell{color:var(--ink-soft)}
+table.grid td.linked{background:#ecfdf5}
+table.grid td.linked .cell{color:var(--pos);font-weight:500}
+table.grid td.auto{background:var(--surface-2)}
+table.grid td.auto .cell{color:var(--ink-mute);font-style:italic;font-size:11.5px}
+table.grid td.editable{background:var(--bg);cursor:text}
+table.grid td.editable:hover{background:var(--accent-mute);box-shadow:inset 0 0 0 1px var(--accent-soft)}
+table.grid td.editing{box-shadow:inset 0 0 0 2px var(--accent);background:var(--bg)}
+table.grid td.sel{box-shadow:inset 0 0 0 1.5px var(--accent)}
+table.grid td.dropdown.editable .cell::after{
+  content:'▾';color:var(--ink-faint);margin-left:auto;font-size:10px;padding-left:6px;
+}
+table.grid td.editing.dropdown{padding:0}
+table.grid td select.editor{
+  display:block;width:100%;min-height:30px;
+  border:none;outline:none;background:var(--bg);
+  font-family:inherit;font-size:12.5px;padding:4px 8px;color:var(--ink);
+  box-sizing:border-box;cursor:pointer;
+}
+table.grid td input.editor{
+  width:100%;height:100%;border:none;outline:none;background:var(--bg);
+  font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;padding:5px 9px;
+  text-align:right;color:var(--ink);
+}
+table.grid td.text input.editor{text-align:left;font-family:inherit}
+.neg{color:var(--neg)}
+.pos{color:var(--pos)}
+td.pct .cell{color:var(--ink-soft)}
+tr.empty td{height:6px;background:transparent;border:none}
+tr.total td{border-top:2px solid var(--border-strong);background:var(--surface);font-weight:600}
+tr.total td .cell{font-weight:600}
+
+/* ➕ insert row */
+tr.addrow td{
+  padding:5px;background:var(--surface);border-right:none;
+  border-top:1px dashed var(--border);
+}
+.btn-addrow{
+  width:100%;padding:7px;border:1px dashed var(--border-strong);background:transparent;
+  color:var(--ink-mute);font-family:inherit;font-size:12px;font-weight:500;
+  border-radius:5px;cursor:pointer;transition:.12s;
+}
+.btn-addrow:hover{background:var(--accent-mute);border-color:var(--accent);color:var(--accent)}
+
+/* footer row */
+tr.footer-row td{background:#fffbeb;border-top:2px solid #fbbf24}
+tr.footer-row td .cell{padding:8px 9px;font-size:12px;color:var(--ink)}
+tr.footer-row td.footer-label .cell{font-weight:600;color:var(--warn)}
+tr.footer-row td.footer-auto .cell b{color:var(--ink-mute);font-weight:400;margin-right:4px;font-size:11px}
+tr.footer-row td.footer-input .cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+tr.footer-row td.footer-input .cell b{color:var(--ink-mute);font-weight:400;font-size:11px;white-space:nowrap}
+tr.footer-row input.finput{
+  flex:1;min-width:50px;border:1px solid var(--border);background:#fff;
+  padding:3px 6px;font-family:inherit;font-size:12px;color:var(--ink);
+  border-radius:4px;outline:none;
+}
+tr.footer-row input.finput:focus{border-color:#fbbf24}
+
+.formula-bar{
+  display:flex;align-items:center;gap:10px;padding:6px 12px;
+  background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  margin-bottom:10px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:11.5px;
+  color:var(--ink-mute);min-height:30px;
+}
+.formula-bar .addr{color:var(--accent);font-weight:500;min-width:120px;font-family:inherit;font-size:11px}
+.formula-bar .fx{color:var(--ink-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- Modal ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(24,24,27,.4);
+  display:none;align-items:center;justify-content:center;z-index:100;
+}
+.overlay.show{display:flex}
+.modal{
+  background:var(--bg);border-radius:10px;padding:22px;max-width:440px;width:92%;
+  border:1px solid var(--border);box-shadow:0 20px 50px rgba(0,0,0,.15);
+  animation:pop .15s ease;
+}
+@keyframes pop{from{transform:scale(.98);opacity:0}to{transform:none;opacity:1}}
+.modal h3{font-weight:600;font-size:15px;margin-bottom:6px}
+.modal p{color:var(--ink-soft);font-size:12.5px;margin-bottom:14px}
+.modal label{display:block;font-size:11px;color:var(--ink-mute);margin:10px 0 4px}
+.modal input,.modal select{width:100%;text-align:left;cursor:text;padding:6px 10px;font-size:12.5px}
+.modal .row{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+.modal .field-note{font-size:11px;color:var(--ink-faint);margin-top:4px}
+.banner{
+  padding:9px 12px;border-radius:6px;font-size:11.5px;margin-bottom:12px;
+  background:var(--accent-mute);color:var(--accent);border:1px solid var(--accent-soft);
+}
+
+.loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:200;flex-direction:column;gap:12px}
+.loading .spin{width:28px;height:28px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{color:var(--ink-mute);font-size:12.5px}
+
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:9px 16px;border-radius:6px;font-size:12.5px;
+  opacity:0;transition:.2s;z-index:150;pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--neg)}
+
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:5px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:#a1a1aa}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading"><div class="spin"></div><p>正在加载…</p></div>
+
+<div class="app" id="app" style="display:none">
+  <div class="topbar">
+    <div class="brand">
+      <span class="logo">DJJ</span>
+      <span class="sub">财务报表 · Financial Reports</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="month-picker">
+      <label>月份</label>
+      <select class="ctrl" id="monthSelect"></select>
+      <button class="ctrl ghost" id="newMonthBtn">＋ 新月份</button>
+    </div>
+    <div class="sync-pill" id="syncStatus"><span class="dot"></span><span class="txt">本地模式</span></div>
+    <button class="ctrl ghost" id="cloudBtn">☁ 云端</button>
+  </div>
+
+  <div class="tabs-wrap"><div class="tabs" id="tabs"></div></div>
+
+  <div class="workspace">
+    <div class="sheet-wrap" id="sheetWrap"></div>
+  </div>
+</div>
+
+<div class="overlay" id="newMonthModal">
+  <div class="modal">
+    <h3>创建新月份</h3>
+    <p>新月份将保留全部表结构与公式，数据清空。损益表「上月」列自动带入所选基准月数据。</p>
+    <label>新月份</label>
+    <input class="ctrl" type="month" id="newMonthInput" />
+    <label>以哪个月为基准</label>
+    <select class="ctrl" id="baseMonthSelect"></select>
+    <div class="row">
+      <button class="ctrl ghost" id="newMonthCancel">取消</button>
+      <button class="ctrl primary" id="newMonthConfirm">创建</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="cloudModal">
+  <div class="modal">
+    <h3>连接 Supabase</h3>
+    <p>填入 URL 和 anon/publishable key，跨设备同步。留空只用本机存储。</p>
+    <div class="banner">配置只存在本机浏览器，不会上传仓库。</div>
+    <label>Supabase URL</label>
+    <input class="ctrl" type="text" id="supaUrl" placeholder="https://xxxx.supabase.co" />
+    <label>Anon / Publishable Key</label>
+    <input class="ctrl" type="text" id="supaKey" placeholder="sb_publishable_... 或 eyJ..." />
+    <div class="row">
+      <button class="ctrl ghost" id="cloudDisconnect">断开</button>
+      <button class="ctrl ghost" id="cloudCancel">取消</button>
+      <button class="ctrl primary" id="cloudConnect">连接并同步</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   DJJ Finance v2 — single-file edition
+   Schema-driven: edit SHEETS config below to change fields
+   ============================================================ */
+
+/* ============================================================
+   SCHEMA DEFINITION
+   - Each sheet defines its columns + types
+   - 'data' sheets are user-input (auto-cleared each month)
+   - 'recon' is the central aggregator (formulas pulling from data sheets)
+   - 'pl' are profit/loss statements (formulas pulling from recon)
+   - Column types: text, money, pct, date, auto-serial, auto-month, dropdown
+   ============================================================ */
+
+const STORES = ['悉尼','布里斯班','珀斯'];
+
+const SHEETS = [
+  // ===== DATA SHEETS (user input) =====
+  {
+    key:'sales', name:'机型销售统计', en:'Sales by Model', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'month', label:'月份', type:'auto-month'},
+      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'date', label:'销售单建立时间', type:'date'},
+      {key:'model', label:'机型', type:'text'},
+      {key:'qty', label:'数量', type:'number'},
+      {key:'order_no', label:'单号', type:'text'},
+      {key:'salesperson', label:'销售人员', type:'text'},
+      {key:'total_gst', label:'Total Amount(含GST)', type:'money'},
+      {key:'vin', label:'车架号', type:'text'},
+      {key:'cost', label:'采购价(不含GST)', type:'money'},
+      {key:'price', label:'销售价(不含GST)', type:'money'},
+      {key:'margin', label:'主机毛利', type:'money', formula:row=>(num(row.price)-num(row.cost))},
+      {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{const p=num(row.price);return p?(num(row.price)-num(row.cost))/p:null;}},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
+  },
+  {
+    key:'transfer', name:'悉尼门店流转', en:'Sydney Transfers', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'month', label:'月份', type:'auto-month'},
+      {key:'direction', label:'流转方向', type:'dropdown', options:['悉尼→布里斯班','悉尼→珀斯']},
+      {key:'from_po', label:'悉尼PO', type:'text'},
+      {key:'cost', label:'采购价', type:'money'},
+      {key:'to_doc', label:'对方门店单据', type:'text'},
+      {key:'transfer_price', label:'流转价', type:'money'},
+      {key:'margin_pct', label:'毛利率', type:'pct', formula:row=>{const t=num(row.transfer_price);return t?(num(row.transfer_price)-num(row.cost))/t:null;}},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    addRowButton:true, defaultEmptyRows:1,
+  },
+  {
+    key:'ar', name:'应收账款及取消定金', en:'Receivables', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'month', label:'月份', type:'auto-month'},
+      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'order_no', label:'订单号', type:'text'},
+      {key:'date', label:'日期', type:'date'},
+      {key:'salesperson', label:'销售人员', type:'text'},
+      {key:'total', label:'销售单全款', type:'money'},
+      {key:'received', label:'已收款项', type:'money'},
+      {key:'remain', label:'剩余应收款', type:'money', formula:row=>num(row.total)-num(row.received)},
+      {key:'system_ar', label:'系统体现应收款', type:'money'},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
+  },
+  {
+    key:'ap', name:'门店应付账款', en:'Payables', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'month', label:'月份', type:'auto-month'},
+      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'contract_no', label:'合同号', type:'text'},
+      {key:'total', label:'总金额', type:'money'},
+      {key:'remain', label:'剩余金额', type:'money'},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
+  },
+  {
+    key:'delivery', name:'三门店运输费', en:'Delivery Costs', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'month', label:'月份', type:'auto-month'},
+      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'date', label:'时间', type:'date'},
+      {key:'gst', label:'GST', type:'money'},
+      {key:'net', label:'不含GST', type:'money'},
+      {key:'paid', label:'支付金额', type:'money'},
+      {key:'approval_no', label:'付费审批单号', type:'text'},
+      {key:'rel_order', label:'对应销售单', type:'text'},
+      {key:'order_date', label:'销售单时间', type:'date'},
+      {key:'delivery_fee', label:'收 Delivery Fee', type:'money'},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
+  },
+  {
+    key:'rental_eq', name:'门店租赁设备统计', en:'Rental Equipment', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'model', label:'设备型号', type:'text'},
+      {key:'vin', label:'VIN', type:'text'},
+      {key:'cost', label:'不含税采购价', type:'money'},
+      {key:'nature', label:'性质', type:'dropdown', options:['自有','调拨']},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
+    persistAcrossMonths:true,   // equipment is long-lived, NOT cleared each month
+  },
+  {
+    key:'rental_orders', name:'门店租赁单据统计', en:'Rental Orders', kind:'data',
+    columns:[
+      {key:'serial', label:'序号', type:'auto-serial'},
+      {key:'month', label:'月份', type:'auto-month'},
+      {key:'store', label:'门店', type:'dropdown', options:STORES},
+      {key:'quote', label:'对应报价单', type:'text'},
+      {key:'model', label:'机器型号', type:'text'},
+      {key:'vin', label:'VIN', type:'text'},
+      {key:'salesperson', label:'销售', type:'text'},
+      {key:'term', label:'租期', type:'text'},
+      {key:'start_date', label:'租赁起始时间', type:'date'},
+      {key:'invoice', label:'最新进销存发票', type:'text'},
+      {key:'status', label:'状态', type:'dropdown', options:['进行中','已结束','已退货']},
+      {key:'end_date', label:'到期日', type:'date'},
+      {key:'monthly_rent', label:'月租金', type:'money'},
+      {key:'note', label:'备注', type:'text'},
+    ],
+    storeFilter:'store', addRowButton:true, defaultEmptyRows:1,
+    footer:{
+      label:'本月统计', label_col:'quote',
+      auto:{label:'本月销售单数', col:'monthly_rent', source:'quote', kind:'count'},
+      input:{label:'超3月单据数', col:'invoice'},
+    },
+  },
+
+  // ===== RECON SHEET (auto-aggregator) =====
+  {
+    key:'recon', name:'财务报表核对', en:'Reconciliation', kind:'recon',
+    // Cross-store rows: for each metric, three columns (悉尼/布里斯班/珀斯)
+    rows:[
+      {key:'sales_total', label:'当月对客户销售总额（不含GST）',
+        formula:store=>`=SUMIF(sales!C:C,"${store}",sales!L:L)`},   // sum of col L (price) where store matches
+      {key:'unsold', label:'当月已售未采购的产品销售额', formula:null, input:true},
+      {key:'cancelled', label:'当月取消订单销售额（不含GST）', formula:null, input:true},
+      {key:'prev_adj', label:'前期订单销售额调整', formula:null, input:true},
+      {key:'net_sales', label:'当月总销售额扣减当月取消订单',
+        formula:store=>`=recon_sales_total_${store}-recon_cancelled_${store}-recon_prev_adj_${store}+recon_unsold_${store}`},
+      {key:'rental_rev', label:'租金收入（不含GST）',
+        formula:store=>`=SUMIF(rental_orders!C:C,"${store}",rental_orders!M:M)`},
+      {key:'rental_bond', label:'Rental Bond (GST free) refundable', input:true},
+      {key:'sales_to_perth', label:'销售给珀斯（仅悉尼）', input:true, onlyStore:'悉尼'},
+      {key:'sales_to_brisbane', label:'销售给布里斯班（仅悉尼）', input:true, onlyStore:'悉尼'},
+      {key:'ar_total', label:'应收账款合计',
+        formula:store=>`=SUMIF(ar!C:C,"${store}",ar!I:I)`},
+      {key:'ap_total', label:'应付账款合计',
+        formula:store=>`=SUMIF(ap!C:C,"${store}",ap!F:F)`},
+      {key:'delivery_cost', label:'运输费合计（不含GST）',
+        formula:store=>`=SUMIF(delivery!C:C,"${store}",delivery!F:F)`},
+    ],
+  },
+
+  // ===== P&L SHEETS =====
+  {key:'pl_syd', name:'悉尼损益表', en:'Sydney P&L', kind:'pl', store:'悉尼'},
+  {key:'pl_bri', name:'布里斯班损益表', en:'Brisbane P&L', kind:'pl', store:'布里斯班'},
+  {key:'pl_per', name:'珀斯损益表', en:'Perth P&L', kind:'pl', store:'珀斯'},
+];
+
+// Common P&L row structure (used for all 3 stores)
+const PL_ROWS = [
+  {section:'trading', label:'营业额 Trading Income'},
+  {key:'sales', label:'对客户销售总额 Sales', from:'recon.sales_total'},
+  {key:'sales_to_perth', label:'销售给珀斯', from:'recon.sales_to_perth', onlyStore:'悉尼'},
+  {key:'sales_to_brisbane', label:'销售给布里斯班', from:'recon.sales_to_brisbane', onlyStore:'悉尼'},
+  {key:'total_income', label:'营业总收入 Total Income', sum:['sales','sales_to_perth','sales_to_brisbane']},
+
+  {section:'gp', label:'毛利 Gross Profit (不含GST)'},
+  {key:'gp_main', label:'机型销售毛利 Gross Profit',
+    formula:store=>`=SUMIF(sales!C:C,"${store}",sales!M:M)`},
+  {key:'gp_total', label:'毛利合计 Total Gross Profit', sum:['gp_main']},
+
+  {section:'rental', label:'租赁收入 Rental Income'},
+  {key:'rental_revenue', label:'租金收入 Rental Revenue', from:'recon.rental_rev'},
+  {key:'rental_bond', label:'Rental Bond', from:'recon.rental_bond'},
+
+  {section:'expenses', label:'费用 Expenses', input:true},
+  {key:'rent', label:'门店租金 Store Rent', input:true},
+  {key:'salary', label:'工资 Salary', input:true},
+  {key:'super', label:'养老金 Super', input:true},
+  {key:'delivery', label:'运输费 Delivery', from:'recon.delivery_cost'},
+  {key:'utility', label:'水电气 Utility', input:true},
+  {key:'marketing', label:'广告费 Marketing', input:true},
+  {key:'other_exp', label:'其他费用 Other', input:true},
+  {key:'total_exp', label:'费用合计 Total Expenses', sum:['rent','salary','super','delivery','utility','marketing','other_exp']},
+
+  {section:'profit', label:'利润 Profit'},
+  {key:'net_profit', label:'净利润 Net Profit', formula:'gp_total+rental_revenue-total_exp'},
+
+  {section:'balance', label:'资产负债 Balance'},
+  {key:'ar', label:'应收账款 AR', from:'recon.ar_total'},
+  {key:'ap', label:'应付账款 AP', from:'recon.ap_total'},
+];
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+const $ = s => document.querySelector(s);
+function toast(msg, err=false){ const t=$('#toast'); t.textContent=msg; t.className='toast show'+(err?' err':''); setTimeout(()=>t.className='toast',2000); }
+function num(v){ if(v===null||v===undefined||v==='') return 0; const n=Number(v); return isNaN(n)?0:n; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function fmtMoney(v){
+  if(v===null||v===undefined||v==='') return '';
+  const n=Number(v); if(isNaN(n)) return String(v);
+  const neg=n<0, abs=Math.abs(n);
+  const s=abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (neg?'-':'')+'$'+s;
+}
+function fmtNum(v){
+  if(v===null||v===undefined||v==='') return '';
+  const n=Number(v); if(isNaN(n)) return String(v);
+  return n.toLocaleString('en-US',{maximumFractionDigits:2});
+}
+function fmtPct(v){
+  if(v===null||v===undefined||v==='') return '';
+  const n=Number(v); if(isNaN(n)) return String(v);
+  return (n*100).toLocaleString('en-US',{maximumFractionDigits:1})+'%';
+}
+function shiftMonth(ym,delta){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function monthLabel(ym){ const [y,m]=ym.split('-'); return `${y}.${m}`; }
+function thisMonth(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+/* ============================================================
+   STATE & STORAGE
+   ============================================================ */
+const STATE = {
+  month: thisMonth(),
+  sheetKey: SHEETS[0].key,
+  storeFilter: '全部',
+  data: {},          // data[sheetKey] = [{col1:val,col2:val,...}, ...]  (data sheets only)
+  inputs: {},        // inputs[sheetKey][rowKey][store?] = value (for recon/pl inputs)
+};
+const LS_MONTHS = 'djj2_months';
+const LS_BOOK = m => 'djj2_book_'+m;
+const LS_CLOUD = 'djj2_cloud';
+
+function listMonths(){
+  const raw=localStorage.getItem(LS_MONTHS);
+  let arr=raw?JSON.parse(raw):[];
+  if(!arr.includes(STATE.month)) arr.push(STATE.month);
+  return [...new Set(arr)].sort().reverse();
+}
+function saveMonthsList(arr){ localStorage.setItem(LS_MONTHS, JSON.stringify([...new Set(arr)].sort())); }
+
+function loadMonth(month){
+  const raw = localStorage.getItem(LS_BOOK(month));
+  if(raw){
+    try{ const b=JSON.parse(raw); STATE.data = b.data||{}; STATE.inputs = b.inputs||{}; return; }catch(e){}
+  }
+  // fresh empty month
+  STATE.data = {};
+  STATE.inputs = {};
+  // Equipment is persistent — copy from any prior month if exists
+  const months = listMonths().filter(m=>m!==month);
+  for(const prior of months){
+    const priorRaw = localStorage.getItem(LS_BOOK(prior));
+    if(priorRaw){
+      try{
+        const pb = JSON.parse(priorRaw);
+        for(const sh of SHEETS){
+          if(sh.kind==='data' && sh.persistAcrossMonths && pb.data && pb.data[sh.key]){
+            STATE.data[sh.key] = JSON.parse(JSON.stringify(pb.data[sh.key]));
+          }
+        }
+      }catch(e){}
+      break;
+    }
+  }
+}
+function saveMonth(){
+  localStorage.setItem(LS_BOOK(STATE.month), JSON.stringify({data:STATE.data, inputs:STATE.inputs}));
+  const months = listMonths(); if(!months.includes(STATE.month)) months.push(STATE.month);
+  saveMonthsList(months);
+}
+
+/* ============================================================
+   COMPUTED VALUES (the heart of the formula system)
+   - data sheet "formula" columns compute per-row
+   - recon sheet rows compute from data sheets
+   - P&L rows pull from recon or compute via sum/formula
+   ============================================================ */
+
+// Get all rows of a data sheet (excluding empty trailing rows when reading)
+function dataRows(sheetKey){
+  return (STATE.data[sheetKey]||[]).filter(r => r && Object.keys(r).some(k=>r[k]!=null && r[k]!==''));
+}
+
+// For data sheets: compute a row's formula columns
+function computeDataRow(sheet, row){
+  const out = {...row};
+  for(const col of sheet.columns){
+    if(col.formula){
+      try{ out[col.key] = col.formula(row); }catch(e){ out[col.key]=null; }
+    }
+  }
+  return out;
+}
+
+// Get a recon value: recon[rowKey][store] (number or null)
+function reconValue(rowKey, store, monthData){
+  monthData = monthData || {data:STATE.data, inputs:STATE.inputs};
+  const reconSheet = SHEETS.find(s=>s.key==='recon');
+  const def = reconSheet.rows.find(r=>r.key===rowKey);
+  if(!def) return null;
+  // Input row
+  if(def.input){
+    const k = monthData.inputs.recon||{};
+    return num(k[rowKey] && k[rowKey][store]);
+  }
+  // Formula row: aggregate from data sheets
+  if(def.formula){
+    // Specific aggregators
+    if(rowKey==='sales_total'){
+      const rows = (monthData.data.sales||[]).filter(r=>r && r.store===store);
+      return rows.reduce((s,r)=>s+num(r.price),0);
+    }
+    if(rowKey==='rental_rev'){
+      const rows = (monthData.data.rental_orders||[]).filter(r=>r && r.store===store);
+      return rows.reduce((s,r)=>s+num(r.monthly_rent),0);
+    }
+    if(rowKey==='ar_total'){
+      const rows = (monthData.data.ar||[]).filter(r=>r && r.store===store);
+      return rows.reduce((s,r)=>s+(num(r.total)-num(r.received)),0);
+    }
+    if(rowKey==='ap_total'){
+      const rows = (monthData.data.ap||[]).filter(r=>r && r.store===store);
+      return rows.reduce((s,r)=>s+num(r.remain),0);
+    }
+    if(rowKey==='delivery_cost'){
+      const rows = (monthData.data.delivery||[]).filter(r=>r && r.store===store);
+      return rows.reduce((s,r)=>s+num(r.net),0);
+    }
+    if(rowKey==='net_sales'){
+      return reconValue('sales_total',store,monthData)
+        - reconValue('cancelled',store,monthData)
+        - reconValue('prev_adj',store,monthData)
+        + reconValue('unsold',store,monthData);
+    }
+  }
+  return null;
+}
+
+// Get a P&L value: thisMonth or lastMonth
+function plValue(store, rowKey, mode){
+  // mode: 'this' or 'last'
+  if(mode==='last'){
+    const lastM = shiftMonth(STATE.month,-1);
+    const raw = localStorage.getItem(LS_BOOK(lastM));
+    if(!raw) return null;
+    let lastData;
+    try{ lastData = JSON.parse(raw); }catch(e){ return null; }
+    return computePLValue(store,rowKey,lastData);
+  }
+  return computePLValue(store,rowKey,{data:STATE.data,inputs:STATE.inputs});
+}
+
+function computePLValue(store, rowKey, monthData){
+  const def = PL_ROWS.find(r=>r.key===rowKey);
+  if(!def) return null;
+  if(def.from){
+    const [src,srcKey] = def.from.split('.');
+    if(src==='recon') return reconValue(srcKey,store,monthData);
+  }
+  if(def.sum){
+    return def.sum.reduce((s,k)=>{
+      const v = computePLValue(store,k,monthData);
+      return s + (v===null?0:num(v));
+    },0);
+  }
+  if(def.formula){
+    if(typeof def.formula==='function'){
+      // aggregator function (sales gp etc)
+      if(rowKey==='gp_main'){
+        const rows = (monthData.data.sales||[]).filter(r=>r && r.store===store);
+        return rows.reduce((s,r)=>s+(num(r.price)-num(r.cost)),0);
+      }
+    } else if(typeof def.formula==='string'){
+      // simple expression like "gp_total+rental_revenue-total_exp"
+      const expr = def.formula.replace(/[a-z_]+/g, name=>{
+        const v = computePLValue(store,name,monthData);
+        return '('+num(v)+')';
+      });
+      try{ return eval(expr); }catch(e){ return null; }
+    }
+  }
+  if(def.input){
+    const k = monthData.inputs.pl||{};
+    return num(k[store] && k[store][rowKey]);
+  }
+  return null;
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function init(){
+  loadCloudCfg();
+  loadMonth(STATE.month);
+  renderMonthSelect();
+  renderTabs();
+  renderSheet();
+  wireUI();
+  $('#loading').style.display='none';
+  $('#app').style.display='flex';
+}
+
+function renderMonthSelect(){
+  const sel=$('#monthSelect'); sel.innerHTML='';
+  for(const m of listMonths()){
+    const o=document.createElement('option'); o.value=m; o.textContent=monthLabel(m);
+    if(m===STATE.month) o.selected=true; sel.appendChild(o);
+  }
+}
+
+function renderTabs(){
+  const t=$('#tabs'); t.innerHTML='';
+  for(const sh of SHEETS){
+    const b=document.createElement('button');
+    b.className='tab'+(sh.key===STATE.sheetKey?' active':'');
+    b.innerHTML=`${sh.name}<span class="badge">${sh.en}</span>`;
+    b.onclick=()=>{ STATE.sheetKey=sh.key; STATE.storeFilter='全部'; renderTabs(); renderSheet(); };
+    t.appendChild(b);
+  }
+}
+
+function renderSheet(){
+  const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
+  const wrap = $('#sheetWrap');
+  if(sh.kind==='data') renderDataSheet(sh,wrap);
+  else if(sh.kind==='recon') renderReconSheet(sh,wrap);
+  else if(sh.kind==='pl') renderPLSheet(sh,wrap);
+}
+
+/* ----- Data sheet (transaction list) ----- */
+function renderDataSheet(sh, wrap){
+  let html = `<div class="sheet-head">
+    <h2>${escapeHtml(sh.name)}</h2><span class="en">${escapeHtml(sh.en)}</span>
+    <span class="tag input">数据填写</span>`;
+  if(sh.storeFilter){
+    const opts = ['全部',...STORES];
+    html+=`<div class="store-filter">
+      <label>门店</label>
+      <select class="ctrl" id="storeFilter">
+        ${opts.map(s=>`<option value="${escapeHtml(s)}"${s===STATE.storeFilter?' selected':''}>${escapeHtml(s)}${s==='全部'?'门店':''}</option>`).join('')}
+      </select></div>`;
+  }
+  html += `</div>
+    <div class="sheet-hint">
+      <span><b>白色单元格可填写</b>，灰色（序号/月份）自动，蓝色为本行公式自动算。</span>
+      <span class="legend"><i class="fill-input"></i>可填</span>
+      <span class="legend"><i class="fill-formula"></i>自动</span>
+    </div>`;
+
+  html += `<div class="formula-bar" id="fbar"><span class="addr">—</span><span class="fx">点击单元格查看</span></div>`;
+  html += `<div class="grid-scroll"><table class="grid">`;
+
+  // Header
+  html += `<thead><tr><th class="rowctrl"></th>`;
+  for(const col of sh.columns){
+    html += `<th data-col="${col.key}"><div class="hcell">${escapeHtml(col.label)}</div></th>`;
+  }
+  html += `</tr></thead><tbody>`;
+
+  // Rows
+  const rows = STATE.data[sh.key] || [];
+  const filterStore = sh.storeFilter && STATE.storeFilter!=='全部' ? STATE.storeFilter : null;
+  const visibleRows = [];
+  rows.forEach((r,i)=>{
+    if(filterStore && r.store && r.store!==filterStore) return;
+    visibleRows.push({row:r, index:i});
+  });
+
+  // Ensure at least defaultEmptyRows trailing empty rows
+  const emptyToAdd = Math.max(0, (sh.defaultEmptyRows||1));
+  // Find last non-empty index
+  let lastDataIdx = -1;
+  rows.forEach((r,i)=>{
+    if(r && Object.keys(r).some(k=>r[k]!=null && r[k]!=='')) lastDataIdx=i;
+  });
+  // Add trailing virtual empties up to lastDataIdx+emptyToAdd
+  const needTotal = lastDataIdx + 1 + emptyToAdd;
+  while(rows.length < needTotal){ rows.push({}); }
+  STATE.data[sh.key] = rows;
+
+  // Re-collect visibleRows now that we possibly added
+  const finalVisible = [];
+  let serialCounter = 0;
+  rows.forEach((r,i)=>{
+    if(filterStore && r.store && r.store!==filterStore) return;
+    serialCounter++;
+    finalVisible.push({row:r, index:i, serial:serialCounter});
+  });
+
+  for(const {row,index,serial} of finalVisible){
+    html += `<tr class="mgrow" data-i="${index}">`;
+    html += `<td class="rowctrl"><button class="btn-delrow" data-i="${index}" title="删除此行">−</button></td>`;
+    const computed = computeDataRow(sh,row);
+    for(const col of sh.columns){
+      html += renderDataCell(sh, col, computed, row, index, serial);
+    }
+    html += `</tr>`;
+  }
+
+  // ➕ button
+  html += `<tr class="addrow"><td colspan="${sh.columns.length+1}">
+    <button class="btn-addrow" id="btnAddRow">＋ 插入一行</button>
+  </td></tr>`;
+
+  // Footer
+  if(sh.footer){
+    const f = sh.footer;
+    html += `<tr class="footer-row">`;
+    html += `<td class="rowctrl"></td>`;
+    for(const col of sh.columns){
+      if(col.key===f.label_col){
+        html += `<td class="footer-label"><div class="cell">${escapeHtml(f.label)}</div></td>`;
+      } else if(f.auto && col.key===f.auto.col){
+        // count of rows where source col is non-empty
+        const cnt = rows.filter(r=>r && r[f.auto.source]!=null && String(r[f.auto.source]).trim()!=='').length;
+        html += `<td class="footer-auto"><div class="cell"><b>${escapeHtml(f.auto.label)}：</b>${cnt}</div></td>`;
+      } else if(f.input && col.key===f.input.col){
+        const key = `${sh.key}__${STATE.month}__${f.input.col}`;
+        const stored = localStorage.getItem('djj2_finput_'+key) || '';
+        html += `<td class="footer-input"><div class="cell"><b>${escapeHtml(f.input.label)}：</b>
+          <input class="finput" data-key="${escapeHtml(key)}" value="${escapeHtml(stored)}" /></div></td>`;
+      } else {
+        html += `<td></td>`;
+      }
+    }
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table></div>`;
+  wrap.innerHTML = html;
+  attachDataHandlers(sh);
+}
+
+function renderDataCell(sh, col, computed, raw, rowIdx, serial){
+  const val = computed[col.key];
+  const isAuto = col.type==='auto-serial' || col.type==='auto-month' || col.formula;
+  const isText = col.type==='text' || col.type==='date' || col.type==='dropdown' || col.type==='auto-month';
+  const isMoney = col.type==='money';
+  const isPct = col.type==='pct';
+  const isNumber = col.type==='number';
+  const isDropdown = col.type==='dropdown';
+  const editable = !isAuto;
+
+  let display = '';
+  if(col.type==='auto-serial'){
+    // Only show serial if row has any data OR it's within default empty range
+    const hasData = Object.keys(raw).some(k=>raw[k]!=null && raw[k]!=='');
+    display = serial;  // always show serial number for visible rows
+  } else if(col.type==='auto-month'){
+    display = monthLabel(STATE.month);
+  } else if(val===null||val===undefined||val===''){
+    display = '';
+  } else if(isPct){
+    display = fmtPct(val);
+  } else if(isMoney){
+    display = fmtMoney(val);
+  } else if(isNumber){
+    display = fmtNum(val);
+  } else {
+    display = String(val);
+  }
+
+  let cls = '';
+  if(isText) cls += ' label text';
+  else cls += ' num';
+  if(isAuto) cls += ' auto';
+  if(col.formula) cls += ' formula';
+  if(isDropdown) cls += ' dropdown';
+  if(editable) cls += ' editable';
+
+  let extra='';
+  if(typeof val==='number' && val<0) extra=' neg';
+  if(isPct) extra+=' pct';
+
+  return `<td class="${cls}${extra}" data-i="${rowIdx}" data-col="${col.key}"><div class="cell">${escapeHtml(display)}</div></td>`;
+}
+
+function attachDataHandlers(sh){
+  const tbody = $('#sheetWrap tbody');
+  if(!tbody) return;
+
+  tbody.addEventListener('click', e=>{
+    // ➕
+    if(e.target.closest('#btnAddRow')){
+      e.preventDefault();
+      (STATE.data[sh.key] = STATE.data[sh.key]||[]).push({});
+      saveMonth(); renderSheet();
+      return;
+    }
+    // −
+    const delBtn = e.target.closest('.btn-delrow');
+    if(delBtn){
+      e.preventDefault();
+      const i = +delBtn.dataset.i;
+      const row = (STATE.data[sh.key]||[])[i];
+      const hasData = row && Object.keys(row).some(k=>{
+        const col = sh.columns.find(c=>c.key===k);
+        if(col && (col.type==='auto-serial'||col.type==='auto-month'||col.formula)) return false;
+        return row[k]!=null && row[k]!=='';
+      });
+      if(hasData){ toast('该行有内容，不能直接删除',true); return; }
+      STATE.data[sh.key].splice(i,1);
+      saveMonth(); renderSheet();
+      return;
+    }
+    if(e.target.closest('input.finput')) return;
+    const td = e.target.closest('td');
+    if(!td || td.classList.contains('rowctrl')) return;
+    if(td.closest('tr.addrow') || td.closest('tr.footer-row')) return;
+    selectCell(td);
+    if(td.classList.contains('dropdown') && td.classList.contains('editable')){
+      beginEditData(sh, td);
+    }
+  });
+
+  tbody.addEventListener('dblclick', e=>{
+    const td = e.target.closest('td');
+    if(!td || !td.classList.contains('editable')) return;
+    if(td.classList.contains('dropdown')) return;
+    if(td.closest('tr.addrow') || td.closest('tr.footer-row')) return;
+    beginEditData(sh, td);
+  });
+
+  tbody.querySelectorAll('input.finput').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const k = e.target.dataset.key, v = e.target.value;
+      if(v.trim()==='') localStorage.removeItem('djj2_finput_'+k);
+      else localStorage.setItem('djj2_finput_'+k, v);
+    });
+  });
+
+  const sf = $('#storeFilter');
+  if(sf) sf.onchange = e=>{ STATE.storeFilter = e.target.value; renderSheet(); };
+}
+
+function selectCell(td){
+  document.querySelectorAll('td.sel').forEach(x=>x.classList.remove('sel'));
+  td.classList.add('sel');
+  const fbar = $('#fbar');
+  const colKey = td.dataset.col;
+  const i = td.dataset.i;
+  if(fbar){
+    const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
+    const col = sh.columns ? sh.columns.find(c=>c.key===colKey) : null;
+    const lbl = col ? col.label : colKey;
+    fbar.innerHTML = `<span class="addr">行${+i+1} · ${escapeHtml(lbl||colKey||'')}</span><span class="fx">${escapeHtml(td.textContent.trim() || '（空）')}</span>`;
+  }
+}
+
+function beginEditData(sh, td){
+  const i = +td.dataset.i;
+  const colKey = td.dataset.col;
+  const col = sh.columns.find(c=>c.key===colKey);
+  if(!col) return;
+  const row = (STATE.data[sh.key]||[])[i] || {};
+  const cur = row[colKey] !== undefined ? row[colKey] : '';
+
+  td.classList.add('editing');
+
+  if(col.type==='dropdown'){
+    const opts = ['',...(col.options||[])].map(o=>`<option value="${escapeHtml(o)}"${o===cur?' selected':''}>${escapeHtml(o||'— 选择 —')}</option>`).join('');
+    td.innerHTML = `<select class="editor">${opts}</select>`;
+    const sel = td.querySelector('select'); sel.focus();
+    let committed=false;
+    const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
+      if(save){ setCell(sh,i,colKey,sel.value); } else { renderSheet(); } };
+    sel.addEventListener('change',()=>commit(true));
+    sel.addEventListener('blur',()=>commit(true));
+    sel.addEventListener('keydown',ev=>{ if(ev.key==='Escape') commit(false); });
+    return;
+  }
+
+  const inputType = col.type==='date' ? 'date' : 'text';
+  td.innerHTML = `<input class="editor" type="${inputType}" value="${escapeHtml(cur===null?'':String(cur))}" />`;
+  const inp = td.querySelector('input'); inp.focus(); if(col.type!=='date') inp.select();
+  let committed=false;
+  const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
+    if(save){ setCell(sh,i,colKey,inp.value); } else { renderSheet(); } };
+  inp.addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'){ commit(true); }
+    else if(ev.key==='Escape') commit(false);
+    else if(ev.key==='Tab'){ ev.preventDefault(); commit(true); }
+  });
+  inp.addEventListener('blur',()=>commit(true));
+}
+
+function setCell(sh, rowIdx, colKey, value){
+  if(!STATE.data[sh.key]) STATE.data[sh.key] = [];
+  while(STATE.data[sh.key].length <= rowIdx) STATE.data[sh.key].push({});
+  const col = sh.columns.find(c=>c.key===colKey);
+  let parsed = value;
+  if(value !== '' && (col.type==='money' || col.type==='number')){
+    const n = Number(value); if(!isNaN(n)) parsed = n;
+  }
+  if(value===''){ delete STATE.data[sh.key][rowIdx][colKey]; }
+  else { STATE.data[sh.key][rowIdx][colKey] = parsed; }
+  saveMonth(); renderSheet();
+  setSync('saving','保存中…');
+  if(CLOUD.client){ cloudSaveBook().then(()=>setSync('ok','已同步云端')).catch(()=>setSync('err','云端失败')); }
+  else setSync('','本地已保存');
+}
+
+/* ----- Recon sheet ----- */
+function renderReconSheet(sh, wrap){
+  let html = `<div class="sheet-head">
+    <h2>${escapeHtml(sh.name)}</h2><span class="en">${escapeHtml(sh.en)}</span>
+    <span class="tag auto">中枢汇总 · 自动</span></div>
+    <div class="sheet-hint">
+      <span>自动从各数据表汇总，再供 3 张损益表引用。绿色为跨表自动计算，白色为手填项。</span>
+      <span class="legend"><i class="fill-linked"></i>跨表自动</span>
+      <span class="legend"><i class="fill-input"></i>手填</span>
+    </div>`;
+  html += `<div class="grid-scroll"><table class="grid">`;
+  html += `<thead><tr><th><div class="hcell">项目</div></th>`;
+  for(const store of STORES){
+    const cls = store==='悉尼'?'g-sydney':store==='布里斯班'?'g-brisbane':'g-perth';
+    html += `<th class="${cls}"><div class="hcell">${escapeHtml(store)}</div></th>`;
+  }
+  html += `</tr></thead><tbody>`;
+
+  for(const row of sh.rows){
+    html += `<tr><td class="label text"><div class="cell">${escapeHtml(row.label)}</div></td>`;
+    for(const store of STORES){
+      if(row.onlyStore && row.onlyStore!==store){
+        html += `<td class="num"><div class="cell" style="color:var(--ink-faint)">—</div></td>`;
+        continue;
+      }
+      if(row.input){
+        const val = (STATE.inputs.recon||{})[row.key] && (STATE.inputs.recon||{})[row.key][store];
+        html += `<td class="num editable" data-recon-row="${row.key}" data-store="${store}"><div class="cell">${val!=null&&val!==''?fmtMoney(val):''}</div></td>`;
+      } else {
+        const v = reconValue(row.key, store);
+        const cls = v<0?' neg':'';
+        html += `<td class="num linked${cls}"><div class="cell">${v!=null?fmtMoney(v):''}</div></td>`;
+      }
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table></div>`;
+  wrap.innerHTML = html;
+  attachReconHandlers();
+}
+
+function attachReconHandlers(){
+  const tbody = $('#sheetWrap tbody');
+  if(!tbody) return;
+  tbody.addEventListener('dblclick', e=>{
+    const td = e.target.closest('td.editable'); if(!td) return;
+    beginEditRecon(td);
+  });
+  tbody.addEventListener('click', e=>{
+    const td = e.target.closest('td'); if(!td) return;
+    selectCell(td);
+  });
+}
+function beginEditRecon(td){
+  const rowKey = td.dataset.reconRow;
+  const store = td.dataset.store;
+  const cur = (STATE.inputs.recon||{})[rowKey] && (STATE.inputs.recon||{})[rowKey][store];
+  td.classList.add('editing');
+  td.innerHTML = `<input class="editor" value="${escapeHtml(cur==null?'':String(cur))}" />`;
+  const inp = td.querySelector('input'); inp.focus(); inp.select();
+  let committed=false;
+  const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
+    if(save){
+      if(!STATE.inputs.recon) STATE.inputs.recon = {};
+      if(!STATE.inputs.recon[rowKey]) STATE.inputs.recon[rowKey] = {};
+      const v = inp.value.trim();
+      if(v===''){ delete STATE.inputs.recon[rowKey][store]; }
+      else { const n=Number(v); STATE.inputs.recon[rowKey][store] = isNaN(n)?v:n; }
+      saveMonth();
+    }
+    renderSheet();
+  };
+  inp.addEventListener('keydown', ev=>{
+    if(ev.key==='Enter') commit(true);
+    else if(ev.key==='Escape') commit(false);
+  });
+  inp.addEventListener('blur',()=>commit(true));
+}
+
+/* ----- P&L sheet ----- */
+function renderPLSheet(sh, wrap){
+  const store = sh.store;
+  const lastM = monthLabel(shiftMonth(STATE.month,-1));
+  const thisM = monthLabel(STATE.month);
+
+  let html = `<div class="sheet-head">
+    <h2>${escapeHtml(sh.name)}</h2><span class="en">${escapeHtml(sh.en)}</span>
+    <span class="tag auto">损益表 · 自动</span></div>
+    <div class="sheet-hint">
+      <span><b>${lastM}</b> = 上月对比，<b>${thisM}</b> = 本月。绿色为跨表自动，白色为手填费用。</span>
+      <span class="legend"><i class="fill-linked"></i>自动</span>
+      <span class="legend"><i class="fill-input"></i>手填</span>
+    </div>`;
+  html += `<div class="grid-scroll"><table class="grid"><thead><tr>`;
+  html += `<th><div class="hcell">项目</div></th>`;
+  html += `<th><div class="hcell">${escapeHtml(lastM)}</div></th>`;
+  html += `<th><div class="hcell">${escapeHtml(thisM)}</div></th>`;
+  html += `<th><div class="hcell">变化额</div></th>`;
+  html += `<th><div class="hcell">变化率</div></th>`;
+  html += `<th><div class="hcell">备注</div></th>`;
+  html += `</tr></thead><tbody>`;
+
+  for(const r of PL_ROWS){
+    if(r.section){
+      html += `<tr class="total"><td colspan="6"><div class="cell">${escapeHtml(r.label)}</div></td></tr>`;
+      continue;
+    }
+    if(r.onlyStore && r.onlyStore!==store) continue;
+    const last = plValue(store, r.key, 'last');
+    const cur = plValue(store, r.key, 'this');
+    const delta = (last!=null && cur!=null) ? (num(cur)-num(last)) : null;
+    const deltaPct = (last && cur!=null) ? ((num(cur)-num(last))/Math.abs(num(last))) : null;
+    const isInput = r.input;
+
+    html += `<tr><td class="label text"><div class="cell">${escapeHtml(r.label)}</div></td>`;
+    html += `<td class="num"><div class="cell">${last!=null?fmtMoney(last):''}</div></td>`;
+    if(isInput){
+      const note = ((STATE.inputs.pl||{})[store]||{})[r.key];
+      html += `<td class="num editable" data-pl-row="${r.key}" data-store="${store}"><div class="cell">${note!=null?fmtMoney(note):''}</div></td>`;
+    } else {
+      const cls = cur!=null && cur<0?' neg':'';
+      html += `<td class="num linked${cls}"><div class="cell">${cur!=null?fmtMoney(cur):''}</div></td>`;
+    }
+    const deltaCls = delta!=null && delta<0?' neg':delta>0?' pos':'';
+    html += `<td class="num${deltaCls}"><div class="cell">${delta!=null?fmtMoney(delta):''}</div></td>`;
+    const pctCls = deltaPct!=null && deltaPct<0?' neg':deltaPct>0?' pos':'';
+    html += `<td class="num pct${pctCls}"><div class="cell">${deltaPct!=null?fmtPct(deltaPct):''}</div></td>`;
+    html += `<td class="label text"><div class="cell"></div></td>`;
+    html += `</tr>`;
+  }
+  html += `</tbody></table></div>`;
+  wrap.innerHTML = html;
+  attachPLHandlers(store);
+}
+function attachPLHandlers(store){
+  const tbody = $('#sheetWrap tbody'); if(!tbody) return;
+  tbody.addEventListener('dblclick', e=>{
+    const td = e.target.closest('td.editable'); if(!td) return;
+    const rowKey = td.dataset.plRow;
+    const cur = ((STATE.inputs.pl||{})[store]||{})[rowKey];
+    td.classList.add('editing');
+    td.innerHTML = `<input class="editor" value="${escapeHtml(cur==null?'':String(cur))}" />`;
+    const inp = td.querySelector('input'); inp.focus(); inp.select();
+    let committed=false;
+    const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
+      if(save){
+        if(!STATE.inputs.pl) STATE.inputs.pl = {};
+        if(!STATE.inputs.pl[store]) STATE.inputs.pl[store] = {};
+        const v = inp.value.trim();
+        if(v===''){ delete STATE.inputs.pl[store][rowKey]; }
+        else { const n=Number(v); STATE.inputs.pl[store][rowKey] = isNaN(n)?v:n; }
+        saveMonth();
+      }
+      renderSheet();
+    };
+    inp.addEventListener('keydown', ev=>{
+      if(ev.key==='Enter') commit(true);
+      else if(ev.key==='Escape') commit(false);
+    });
+    inp.addEventListener('blur',()=>commit(true));
+  });
+}
+
+/* ============================================================
+   NEW MONTH
+   ============================================================ */
+function createNewMonth(newM, baseM){
+  // Save current first
+  saveMonth();
+  // Load base month (P&L "last" column will pull from it automatically)
+  // Just create empty new month — equipment will auto-carry via loadMonth's persistAcrossMonths logic
+  STATE.month = newM;
+  STATE.data = {};
+  STATE.inputs = {};
+  // Equipment: copy from baseM
+  const baseRaw = localStorage.getItem(LS_BOOK(baseM));
+  if(baseRaw){
+    try{
+      const baseBook = JSON.parse(baseRaw);
+      for(const sh of SHEETS){
+        if(sh.kind==='data' && sh.persistAcrossMonths && baseBook.data && baseBook.data[sh.key]){
+          STATE.data[sh.key] = JSON.parse(JSON.stringify(baseBook.data[sh.key]));
+        }
+      }
+    }catch(e){}
+  }
+  saveMonth();
+}
+
+/* ============================================================
+   SUPABASE
+   ============================================================ */
+const CLOUD = {client:null, url:'', key:''};
+function loadCloudCfg(){
+  const raw = localStorage.getItem(LS_CLOUD); if(!raw) return;
+  try{ const c = JSON.parse(raw); if(c.url && c.key) connectCloud(c.url,c.key,true); }catch(e){}
+}
+function connectCloud(url, key, silent){
+  try{
+    CLOUD.client = window.supabase.createClient(url, key);
+    CLOUD.url = url; CLOUD.key = key;
+    localStorage.setItem(LS_CLOUD, JSON.stringify({url,key}));
+    setSync('ok','云端已连接');
+    if(!silent) cloudSyncAll();
+    return true;
+  }catch(e){ setSync('err','连接失败'); return false; }
+}
+async function cloudSaveBook(){
+  const body = {data:STATE.data, inputs:STATE.inputs};
+  const {error} = await CLOUD.client.from('djj2_books').upsert({
+    month:STATE.month, data:body, updated_at:new Date().toISOString()
+  });
+  if(error) throw error;
+}
+async function cloudSyncAll(){
+  try{
+    const {data, error} = await CLOUD.client.from('djj2_books').select('month,data');
+    if(error) throw error;
+    const months = listMonths();
+    for(const row of data){
+      localStorage.setItem(LS_BOOK(row.month), JSON.stringify(row.data));
+      if(!months.includes(row.month)) months.push(row.month);
+    }
+    saveMonthsList(months);
+    // Push local months not in cloud
+    for(const m of months){
+      if(!data.find(d=>d.month===m)){
+        const raw = localStorage.getItem(LS_BOOK(m));
+        if(raw){
+          await CLOUD.client.from('djj2_books').upsert({month:m, data:JSON.parse(raw), updated_at:new Date().toISOString()});
+        }
+      }
+    }
+    loadMonth(STATE.month); renderMonthSelect(); renderSheet();
+    toast('云端同步完成');
+  }catch(e){ toast('同步失败：'+(e.message||e), true); }
+}
+function setSync(cls, txt){
+  const el = $('#syncStatus'); el.className = 'sync-pill '+(cls||'');
+  el.querySelector('.txt').textContent = txt;
+}
+
+/* ============================================================
+   UI WIRING
+   ============================================================ */
+function wireUI(){
+  $('#monthSelect').onchange = e=>{
+    saveMonth();
+    STATE.month = e.target.value;
+    loadMonth(STATE.month);
+    renderSheet();
+  };
+  $('#newMonthBtn').onclick = ()=>{
+    const months = listMonths();
+    const base = months[0];
+    $('#newMonthInput').value = shiftMonth(base,1);
+    const bs = $('#baseMonthSelect'); bs.innerHTML = '';
+    months.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=monthLabel(m); bs.appendChild(o); });
+    $('#newMonthModal').classList.add('show');
+  };
+  $('#newMonthCancel').onclick = ()=>$('#newMonthModal').classList.remove('show');
+  $('#newMonthConfirm').onclick = ()=>{
+    const nm = $('#newMonthInput').value, base = $('#baseMonthSelect').value;
+    if(!nm){ toast('请选择月份',true); return; }
+    if(listMonths().includes(nm)){ toast('该月份已存在',true); return; }
+    createNewMonth(nm, base);
+    $('#newMonthModal').classList.remove('show');
+    renderMonthSelect(); renderSheet();
+    toast(`已创建 ${monthLabel(nm)}`);
+  };
+  $('#cloudBtn').onclick = ()=>{
+    $('#supaUrl').value = CLOUD.url; $('#supaKey').value = CLOUD.key;
+    $('#cloudModal').classList.add('show');
+  };
+  $('#cloudCancel').onclick = ()=>$('#cloudModal').classList.remove('show');
+  $('#cloudConnect').onclick = ()=>{
+    const url = $('#supaUrl').value.trim(), key = $('#supaKey').value.trim();
+    if(!url || !key){ toast('请填写 URL 和 Key',true); return; }
+    if(connectCloud(url,key,false)) $('#cloudModal').classList.remove('show');
+  };
+  $('#cloudDisconnect').onclick = ()=>{
+    CLOUD.client = null; CLOUD.url=''; CLOUD.key='';
+    localStorage.removeItem(LS_CLOUD);
+    setSync('','本地模式'); $('#cloudModal').classList.remove('show');
+    toast('已断开云端');
+  };
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
