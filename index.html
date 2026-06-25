@@ -217,28 +217,93 @@ tr.adj-section-header td{
 tr.adj-section-header td .cell{
   padding:7px 12px;font-weight:600;color:#92400e;font-size:12px;
 }
+
+/* Sub-section headers (调入 / 调出) */
+tr.adj-subhead td{background:#fffbeb;border:none;padding:0}
+tr.adj-subhead-in td{border-top:1px solid #fde68a}
+tr.adj-subhead-out td{border-top:1px solid #fde68a}
+tr.adj-subhead td .cell{padding:8px 14px;display:flex;align-items:center;gap:14px}
+.adj-subtitle{
+  font-weight:600;font-size:12.5px;color:#92400e;
+  padding:2px 10px;background:#fde68a;border-radius:4px;
+}
+.adj-subhint{font-size:11px;color:#a16207;font-style:italic}
+
+/* Sub-tables */
+tr.adj-tbl-head td{background:#fffbeb;padding:0;border:none}
+table.adj-tbl{
+  width:100%;border-collapse:collapse;background:#fff;
+  margin:0 14px 8px 14px;width:calc(100% - 28px);
+  border:1px solid #fde68a;border-radius:4px;
+  font-size:12px;
+}
+table.adj-tbl thead th{
+  background:#fef9c3;color:#854d0e;font-weight:500;
+  padding:5px 8px;text-align:left;border-bottom:1px solid #fde68a;
+  font-size:11px;
+}
+table.adj-tbl tbody td{
+  padding:5px 8px;border-bottom:1px solid #fef3c7;
+  color:#451a03;background:#fff;
+}
+table.adj-tbl tbody td.num{
+  text-align:right;font-family:'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;
+}
+table.adj-tbl tbody td.adj-cell{cursor:text}
+table.adj-tbl tbody td.adj-cell:hover{background:#fef3c7;box-shadow:inset 0 0 0 1px #fde68a}
+table.adj-tbl tbody td.adj-cell-key{
+  background:#fef3c7;font-weight:600;color:#92400e;cursor:text;
+}
+table.adj-tbl tbody td.adj-cell-key:hover{background:#fde68a}
+table.adj-tbl tbody td.adj-cell-readonly{color:#a16207;font-size:11px;font-style:italic}
+table.adj-tbl tbody td.adj-readonly-num{
+  background:#f0fdf4;color:#15803d;font-weight:500;
+}
+table.adj-tbl tbody td.adj-editing{padding:0}
+table.adj-tbl input.adj-cell-input{
+  width:100%;height:100%;border:none;outline:2px solid #f59e0b;outline-offset:-2px;
+  font-family:inherit;font-size:12px;padding:5px 8px;background:#fff;
+}
+
+/* Order_no input (add new 调入/调出 row) */
+tr.adj-add-row td{background:#fffbeb;padding:8px 14px;border:none}
+.adj-orderno-input{
+  width:100%;padding:7px 12px;border:1.5px dashed #fbbf24;background:#fff;
+  border-radius:5px;font-family:inherit;font-size:12.5px;color:#451a03;
+  outline:none;
+}
+.adj-orderno-input:focus{border-color:#f59e0b;border-style:solid;box-shadow:0 0 0 3px #fde68a}
+.adj-orderno-input::placeholder{color:#a16207;font-style:italic}
+
+/* Delete button in 调入/调出 row */
+button.adj-del{
+  width:20px;height:20px;border-radius:50%;border:1px solid #fde68a;
+  background:#fff;color:#a16207;font-size:14px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0;
+}
+button.adj-del:hover{border-color:var(--neg);color:var(--neg);background:#fef2f2}
+
+/* Sub-totals */
+tr.adj-subtotal-row td{background:#fef3c7;padding:0;border:none}
+.adj-subtotal{
+  padding:8px 14px;font-size:12px;color:#78350f;font-weight:500;
+  border-top:1px solid #fcd34d;
+}
+.adj-subtotal b{font-family:'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;color:#451a03}
+
+/* 本月真实业绩 row */
 tr.adj-row td{background:#fffbeb;border:none;border-bottom:1px solid #fde68a;padding:0}
-tr.adj-row.adj-real td{background:#ecfdf5;border-top:1px solid #6ee7b7;border-bottom:2px solid #6ee7b7}
+tr.adj-row.adj-real td{background:#ecfdf5;border-top:2px solid #6ee7b7;border-bottom:2px solid #6ee7b7}
 .adj-line{
-  display:flex;align-items:center;gap:18px;padding:8px 12px;flex-wrap:wrap;
-  font-size:12px;color:#78350f;
+  display:flex;align-items:center;gap:18px;padding:10px 14px;flex-wrap:wrap;
+  font-size:12px;color:#065f46;
 }
-.adj-row.adj-real .adj-line{color:#065f46}
-.adj-label{font-weight:500;min-width:240px;color:#92400e}
-.adj-row.adj-real .adj-label{color:#047857;font-weight:600}
-.adj-real-label{font-weight:700}
-.adj-val{display:inline-flex;align-items:center;gap:4px;color:#92400e}
-.adj-val b{color:#78350f;font-family:'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
-.adj-row.adj-real .adj-val{color:#047857}
-.adj-row.adj-real .adj-val b{color:#065f46}
-.adj-row.adj-real .adj-val b.neg{color:var(--neg)}
-.adj-detail{color:#a16207;font-size:11px;font-style:italic;flex-basis:100%;margin-top:3px;padding-left:8px}
-.adj-input-box{
-  width:100px;border:1px solid #fcd34d;background:#fff;border-radius:4px;
-  padding:3px 8px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;
-  text-align:right;color:#78350f;outline:none;
-}
-.adj-input-box:focus{border-color:#f59e0b;box-shadow:0 0 0 2px #fde68a}
+.adj-label{font-weight:500;min-width:200px}
+.adj-real-label{font-weight:700;color:#047857;font-size:13px}
+.adj-val{display:inline-flex;align-items:center;gap:6px;color:#047857}
+.adj-val b{color:#065f46;font-family:'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.adj-val b.neg{color:var(--neg)}
+.adj-formula{color:#65a30d;font-size:10.5px;font-style:italic;margin-left:2px}
 
 /* Historical (non-editable) rows */
 tr.historical td{background:#fafafa}
@@ -886,6 +951,9 @@ function saveMonth(){
    ============================================================ */
 function scanPendingMargin(){
   // Returns array of {month, rowIndex, row} across all months
+  // Excludes rows that:
+  //   - Have cost filled (not pending)
+  //   - Have __costFilledMonth set (already claimed by a 调入 entry in that month)
   const result = [];
   const months = listMonths();
   for(const m of months){
@@ -902,7 +970,8 @@ function scanPendingMargin(){
       if(!r) return;
       const hasPrice = r.price != null && r.price !== '';
       const hasCost = r.cost != null && r.cost !== '';
-      if(hasPrice && !hasCost){
+      const claimedBy调入 = r.__costFilledMonth && r.__costFilledMonth !== m;
+      if(hasPrice && !hasCost && !claimedBy调入){
         result.push({month:m, rowIndex:i, row:r});
       }
     });
@@ -1333,7 +1402,7 @@ function renderDataSheet(sh, wrap){
     // Render month rows
     for(const {row,index} of visible){
       monthSerial++;
-      const isPending = sh.key==='sales' && row && row.price!=null && row.price!=='' && (row.cost==null || row.cost==='');
+      const isPending = sh.key==='sales' && row && row.price!=null && row.price!=='' && (row.cost==null || row.cost==='') && (!row.__costFilledMonth || row.__costFilledMonth === m);
       const rowCls = 'mgrow' + (isPending ? ' pending-margin' : '');
       html += `<tr class="${rowCls}" data-month="${m}" data-i="${index}">`;
       if(isPending){
@@ -1349,12 +1418,14 @@ function renderDataSheet(sh, wrap){
       html += `</tr>`;
     }
 
-    // Subtotal row for this month (only if there's at least one non-empty row)
+    // Subtotal row for this month
     const nonEmpty = visible.filter(v => v.row && Object.keys(v.row).some(k=>v.row[k]!=null && v.row[k]!==''));
-    if(nonEmpty.length > 0 && sh.key === 'sales'){
-      // === Sales sheet: 4-row breakdown (total + 3 stores) ===
-      html += renderSalesMonthSummary(sh, m, nonEmpty);
-      // === 调整之前月份数据 section ===
+    if(sh.key === 'sales'){
+      // === Sales sheet: always show summary (even if 0 rows) and adj section ===
+      if(nonEmpty.length > 0){
+        html += renderSalesMonthSummary(sh, m, nonEmpty);
+      }
+      // Adj section always shown — to allow recording 调入/调出 even before this month has data
       html += renderAdjustmentSection(sh, m, nonEmpty);
     } else if(nonEmpty.length > 0){
       // Other data sheets: single row summary
@@ -1417,6 +1488,173 @@ function renderDataSheet(sh, wrap){
   html += `</tbody></table></div>`;
   wrap.innerHTML = html;
   attachDataHandlers(sh);
+}
+
+/* ----- Adjustment (调入/调出) row handlers ----- */
+
+// Lookup a sales row by order_no across earlier months
+// `mode` = 'tiaoru' means looking for "pending margin" rows (price filled, cost not filled)
+// `mode` = 'tiaochu' means looking for "completed" rows (both price and cost filled)
+function findSalesRowByOrderNo(orderNo, beforeMonth, mode){
+  const months = listMonths().sort();
+  for(const m of months){
+    if(m >= beforeMonth) continue;   // only earlier months
+    const rows = getMonthRows(m, 'sales');
+    for(let i=0; i<rows.length; i++){
+      const r = rows[i];
+      if(!r) continue;
+      if(r.order_no !== orderNo) continue;
+      if(mode === 'tiaoru'){
+        const hasPrice = r.price != null && r.price !== '';
+        const hasCost = r.cost != null && r.cost !== '';
+        if(hasPrice && !hasCost){
+          return {row:r, month:m, idx:i};
+        }
+      } else if(mode === 'tiaochu'){
+        const hasPrice = r.price != null && r.price !== '';
+        const hasCost = r.cost != null && r.cost !== '';
+        if(hasPrice && hasCost){
+          return {row:r, month:m, idx:i};
+        }
+      } else {
+        // 'any'
+        return {row:r, month:m, idx:i};
+      }
+    }
+  }
+  return null;
+}
+
+function handleAdjAddRow(sh, m, adjType, orderNo){
+  // Look up the order_no in earlier months
+  const lookup = findSalesRowByOrderNo(orderNo, m, adjType);
+  const adjKey = `adj_${sh.key}_${m}`;
+  if(!STATE.inputs[adjKey]) STATE.inputs[adjKey] = {};
+  const data = STATE.inputs[adjKey];
+  const arrKey = adjType === 'tiaoru' ? 'tiaoru_rows' : 'tiaochu_rows';
+  if(!data[arrKey]) data[arrKey] = [];
+
+  // Check duplicates
+  const dup = data[arrKey].find(r => r.order_no === orderNo);
+  if(dup){
+    toast(`单号 ${orderNo} 已存在`, true);
+    return;
+  }
+
+  let newRow;
+  if(lookup){
+    // Found — copy data from source row
+    const src = lookup.row;
+    if(adjType === 'tiaoru'){
+      newRow = {
+        order_no: orderNo,
+        source_month: lookup.month,
+        source_idx: lookup.idx,
+        store: src.store || '',
+        model: src.model || '',
+        qty: src.qty || 1,
+        salesperson: src.salesperson || '',
+        price: src.price,
+        cost: null,        // user fills this here in 调入
+        note: src.note || '',
+      };
+      // Mark the source row as claimed by this 调入
+      const srcRows = getMonthRows(lookup.month, sh.key);
+      if(srcRows[lookup.idx]){
+        srcRows[lookup.idx].__costFilledMonth = m;
+        saveMonthRows(lookup.month, sh.key, srcRows);
+      }
+      toast(`已从 ${monthLabel(lookup.month)} 拉取数据，请在调入区补充采购价`);
+    } else { // tiaochu
+      const margin = (src.cost != null && src.cost !== '') ? (num(src.price) - num(src.cost)) : null;
+      newRow = {
+        order_no: orderNo,
+        source_month: lookup.month,
+        source_idx: lookup.idx,
+        store: src.store || '',
+        model: src.model || '',
+        qty: src.qty || 1,
+        salesperson: src.salesperson || '',
+        price: src.price,
+        margin: margin,
+        note: '',
+      };
+      toast(`已从 ${monthLabel(lookup.month)} 拉取数据，请补充取消原因`);
+    }
+  } else {
+    // Not found — let user fill manually
+    newRow = {
+      order_no: orderNo,
+      source_month: null,
+      source_idx: null,
+      store: '',
+      model: '',
+      qty: '',
+      salesperson: '',
+      price: '',
+      ...(adjType === 'tiaoru' ? {cost: ''} : {margin: ''}),
+      note: '',
+    };
+    toast(`未找到单号 ${orderNo}，请手动填写各字段`);
+  }
+
+  data[arrKey].push(newRow);
+  STATE.inputs[adjKey] = data;
+  saveMonth();
+  renderSheet();
+}
+
+function beginEditAdjCell(td){
+  if(td.classList.contains('adj-editing')) return;
+  const tr = td.closest('.adj-data-row');
+  if(!tr) return;
+  const adjType = tr.dataset.adjType;
+  const m = tr.dataset.month;
+  const i = +tr.dataset.i;
+  const field = td.dataset.field;
+  if(!field) return;
+
+  const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
+  const adjKey = `adj_${sh.key}_${m}`;
+  const data = STATE.inputs[adjKey] || {};
+  const arr = adjType === 'tiaoru' ? data.tiaoru_rows : data.tiaochu_rows;
+  if(!arr || !arr[i]) return;
+  const cur = arr[i][field];
+
+  td.classList.add('adj-editing');
+  td.innerHTML = `<input class="adj-cell-input" value="${escapeHtml(cur==null||cur===''?'':String(cur))}" />`;
+  const inp = td.querySelector('input');
+  inp.focus();
+  inp.select();
+
+  let committed = false;
+  const commit = save=>{
+    if(committed) return;
+    committed = true;
+    td.classList.remove('adj-editing');
+    if(!save){ renderSheet(); return; }
+    let v = inp.value.trim();
+    // Money fields: parse number
+    if(field === 'price' || field === 'cost' || field === 'margin' || field === 'qty'){
+      if(v === ''){ arr[i][field] = ''; }
+      else {
+        const cleaned = v.replace(/[$,\s]/g, '');
+        const n = Number(cleaned);
+        arr[i][field] = isNaN(n) ? v : n;
+      }
+    } else {
+      arr[i][field] = v;
+    }
+    STATE.inputs[adjKey] = data;
+    saveMonth();
+    renderSheet();
+  };
+  inp.addEventListener('keydown', ev=>{
+    if(ev.key === 'Enter'){ ev.preventDefault(); commit(true); }
+    else if(ev.key === 'Escape'){ commit(false); }
+    else if(ev.key === 'Tab'){ ev.preventDefault(); commit(true); }
+  });
+  inp.addEventListener('blur', ()=> commit(true));
 }
 
 /* ----- Summary rendering helpers for sales sheet ----- */
@@ -1488,83 +1726,152 @@ function renderSalesMonthSummary(sh, m, rowsWithIdx){
 }
 
 function renderAdjustmentSection(sh, m, currentMonthRowsWithIdx){
-  // 调入: rows from earlier months where __costFilledMonth === m (cost was filled this month)
-  // 调出: manual input (cancelled this month's prior-month order)
-  // 取消调出毛利: manual input (margin reversal for cancellations)
+  // 调入: small table — user enters order_no, system pulls data, user fills cost
+  // 调出: small table — user enters order_no, system pulls fully-margined row data, user adds note
   const colspan = sh.columns.length + 1;
 
-  // Find 调入 rows: scan ALL months for sales rows where __costFilledMonth === m AND the row's own month < m
-  const allMonths = listMonths();
-  const tiaoruRows = [];
-  for(const otherMonth of allMonths){
-    if(otherMonth >= m) continue;  // only earlier months
-    const otherRows = getMonthRows(otherMonth, sh.key);
-    otherRows.forEach((r,i)=>{
-      if(!r) return;
-      if(r.__costFilledMonth === m){
-        tiaoruRows.push({row:r, fromMonth:otherMonth, rowIdx:i});
-      }
-    });
-  }
-
-  // Aggregate 调入
-  const tiaoruAgg = aggregateSalesRows(tiaoruRows.map(t=>t.row));
-
-  // Read manual inputs for 调出/取消
   const adjKey = `adj_${sh.key}_${m}`;
   const adjData = STATE.inputs[adjKey] || {};
-  const tiaochuSales = num(adjData.tiaochu_sales);     // 调出销售额 (手填)
-  const cancelMargin = num(adjData.cancel_margin);     // 取消调出毛利 (手填)
+  const tiaoruRows = adjData.tiaoru_rows || [];   // user-managed 调入 rows
+  const tiaochuRows = adjData.tiaochu_rows || []; // user-managed 调出 rows
 
-  // 本月真实业绩 = 本月合计 + 调入 - 调出
+  // === Aggregates ===
+  // 调入: sum of price/margin from user-entered 调入 rows
+  let tiaoruSales = 0, tiaoruMargin = 0;
+  for(const r of tiaoruRows){
+    tiaoruSales += num(r.price);
+    if(r.cost != null && r.cost !== '') tiaoruMargin += num(r.price) - num(r.cost);
+  }
+  // 调出: sum of price (调出销售额) and margin (取消调出毛利)
+  let tiaochuSales = 0, cancelMargin = 0;
+  for(const r of tiaochuRows){
+    tiaochuSales += num(r.price);
+    cancelMargin += num(r.margin);
+  }
+
+  // 本月真实业绩
   const currentAgg = aggregateSalesRows(currentMonthRowsWithIdx.map(v=>v.row));
-  const realSales = currentAgg.price + tiaoruAgg.price - tiaochuSales;
-  const realMargin = currentAgg.margin + tiaoruAgg.margin - cancelMargin;
+  const realSales = currentAgg.price + tiaoruSales - tiaochuSales;
+  const realMargin = currentAgg.margin + tiaoruMargin - cancelMargin;
   const realPct = realSales ? realMargin / realSales : null;
 
   let html = '';
-  // Section header
   html += `<tr class="adj-section-header"><td colspan="${colspan}"><div class="cell">${escapeHtml(monthLabel(m))} 调整之前月份数据</div></td></tr>`;
 
-  // 调入 row (auto)
-  html += `<tr class="adj-row adj-auto" data-month="${m}"><td colspan="${colspan}">
-    <div class="adj-line">
-      <span class="adj-label">调入（来自之前月份补充采购价）</span>
-      <span class="adj-val">销售额 <b>${fmtMoney(tiaoruAgg.price)}</b></span>
-      <span class="adj-val">毛利 <b>${fmtMoney(tiaoruAgg.margin)}</b></span>
-      <span class="adj-val">${tiaoruAgg.count} 条</span>
-      ${tiaoruRows.length>0?`<span class="adj-detail">${tiaoruRows.map(t=>escapeHtml((t.row.order_no||'?')+'@'+monthLabel(t.fromMonth))).join('、')}</span>`:''}
+  // ===== 调入区 (sub-table) =====
+  html += `<tr class="adj-subhead adj-subhead-in"><td colspan="${colspan}"><div class="cell">
+    <span class="adj-subtitle">调入区</span>
+    <span class="adj-subhint">输入单号 → 系统自动查找之前月份待补采购价的订单 → 在此补上采购价</span>
+  </div></td></tr>`;
+
+  // 调入子表头
+  html += `<tr class="adj-tbl-head"><td colspan="${colspan}"><table class="adj-tbl">
+    <thead><tr>
+      <th style="width:50px">序号</th>
+      <th style="width:140px">单号</th>
+      <th style="width:80px">来源月</th>
+      <th style="width:80px">门店</th>
+      <th style="width:200px">机型</th>
+      <th style="width:60px">数量</th>
+      <th style="width:90px">销售人员</th>
+      <th style="width:110px">销售价</th>
+      <th style="width:110px">采购价</th>
+      <th style="width:110px">毛利</th>
+      <th>备注</th>
+      <th style="width:40px"></th>
+    </tr></thead><tbody>`;
+
+  tiaoruRows.forEach((r,i)=>{
+    const margin = (r.cost!=null && r.cost!=='') ? (num(r.price)-num(r.cost)) : null;
+    html += `<tr class="adj-data-row" data-adj-type="tiaoru" data-month="${m}" data-i="${i}">
+      <td class="num">${i+1}</td>
+      <td class="adj-cell" data-field="order_no">${escapeHtml(r.order_no||'')}</td>
+      <td class="adj-cell-readonly">${escapeHtml(r.source_month?monthLabel(r.source_month):'手填')}</td>
+      <td class="adj-cell" data-field="store">${escapeHtml(r.store||'')}</td>
+      <td class="adj-cell" data-field="model">${escapeHtml(r.model||'')}</td>
+      <td class="adj-cell num" data-field="qty">${r.qty||''}</td>
+      <td class="adj-cell" data-field="salesperson">${escapeHtml(r.salesperson||'')}</td>
+      <td class="adj-cell num" data-field="price">${r.price!=null&&r.price!==''?fmtMoney(r.price):''}</td>
+      <td class="adj-cell adj-cell-key num" data-field="cost">${r.cost!=null&&r.cost!==''?fmtMoney(r.cost):''}</td>
+      <td class="num adj-readonly-num">${margin!=null?fmtMoney(margin):''}</td>
+      <td class="adj-cell" data-field="note">${escapeHtml(r.note||'')}</td>
+      <td class="num"><button class="adj-del" data-adj-type="tiaoru" data-month="${m}" data-i="${i}" title="删除">−</button></td>
+    </tr>`;
+  });
+
+  // 调入新增行（输入单号）
+  html += `<tr class="adj-add-row"><td colspan="12">
+    <input class="adj-orderno-input" data-adj-type="tiaoru" data-month="${m}" placeholder="输入单号回车 (如 INV-26364S)，自动从之前月份查找；查不到则空白手填" />
+  </td></tr>`;
+
+  // 调入合计
+  html += `<tr class="adj-subtotal-row"><td colspan="12">
+    <div class="adj-subtotal">
+      调入合计：<b>${tiaoruRows.length}</b> 条 ｜ 销售额 <b>${fmtMoney(tiaoruSales)}</b> ｜ 毛利 <b>${fmtMoney(tiaoruMargin)}</b>
     </div>
   </td></tr>`;
 
-  // 调出销售额 (手填)
-  html += `<tr class="adj-row adj-input" data-month="${m}"><td colspan="${colspan}">
-    <div class="adj-line">
-      <span class="adj-label">调出（之前月份订单取消，销售额）</span>
-      <span class="adj-val">销售额
-        <input class="adj-input-box" data-month="${m}" data-adj-key="tiaochu_sales" type="text"
-          value="${adjData.tiaochu_sales!=null?escapeHtml(String(adjData.tiaochu_sales)):''}" placeholder="0" />
-      </span>
+  html += `</tbody></table></td></tr>`;
+
+  // ===== 调出区 (sub-table) =====
+  html += `<tr class="adj-subhead adj-subhead-out"><td colspan="${colspan}"><div class="cell">
+    <span class="adj-subtitle">调出区</span>
+    <span class="adj-subhint">输入单号 → 系统自动查找之前月份已算过毛利的订单 → 在此标记取消</span>
+  </div></td></tr>`;
+
+  html += `<tr class="adj-tbl-head"><td colspan="${colspan}"><table class="adj-tbl">
+    <thead><tr>
+      <th style="width:50px">序号</th>
+      <th style="width:140px">单号</th>
+      <th style="width:80px">来源月</th>
+      <th style="width:80px">门店</th>
+      <th style="width:200px">机型</th>
+      <th style="width:60px">数量</th>
+      <th style="width:90px">销售人员</th>
+      <th style="width:110px">销售价</th>
+      <th style="width:110px">取消毛利</th>
+      <th>备注（取消原因）</th>
+      <th style="width:40px"></th>
+    </tr></thead><tbody>`;
+
+  tiaochuRows.forEach((r,i)=>{
+    html += `<tr class="adj-data-row" data-adj-type="tiaochu" data-month="${m}" data-i="${i}">
+      <td class="num">${i+1}</td>
+      <td class="adj-cell" data-field="order_no">${escapeHtml(r.order_no||'')}</td>
+      <td class="adj-cell-readonly">${escapeHtml(r.source_month?monthLabel(r.source_month):'手填')}</td>
+      <td class="adj-cell" data-field="store">${escapeHtml(r.store||'')}</td>
+      <td class="adj-cell" data-field="model">${escapeHtml(r.model||'')}</td>
+      <td class="adj-cell num" data-field="qty">${r.qty||''}</td>
+      <td class="adj-cell" data-field="salesperson">${escapeHtml(r.salesperson||'')}</td>
+      <td class="adj-cell num" data-field="price">${r.price!=null&&r.price!==''?fmtMoney(r.price):''}</td>
+      <td class="adj-cell num" data-field="margin">${r.margin!=null&&r.margin!==''?fmtMoney(r.margin):''}</td>
+      <td class="adj-cell" data-field="note">${escapeHtml(r.note||'')}</td>
+      <td class="num"><button class="adj-del" data-adj-type="tiaochu" data-month="${m}" data-i="${i}" title="删除">−</button></td>
+    </tr>`;
+  });
+
+  html += `<tr class="adj-add-row"><td colspan="11">
+    <input class="adj-orderno-input" data-adj-type="tiaochu" data-month="${m}" placeholder="输入单号回车 (如 INV-26100)，自动查找之前月份已算过毛利的订单；查不到则空白手填" />
+  </td></tr>`;
+
+  html += `<tr class="adj-subtotal-row"><td colspan="11">
+    <div class="adj-subtotal">
+      调出合计：<b>${tiaochuRows.length}</b> 条 ｜ 调出销售额 <b>${fmtMoney(tiaochuSales)}</b> ｜ 取消毛利 <b>${fmtMoney(cancelMargin)}</b>
     </div>
   </td></tr>`;
 
-  // 取消调出毛利 (手填)
-  html += `<tr class="adj-row adj-input" data-month="${m}"><td colspan="${colspan}">
-    <div class="adj-line">
-      <span class="adj-label">取消调出毛利（取消订单冲销的毛利）</span>
-      <span class="adj-val">毛利
-        <input class="adj-input-box" data-month="${m}" data-adj-key="cancel_margin" type="text"
-          value="${adjData.cancel_margin!=null?escapeHtml(String(adjData.cancel_margin)):''}" placeholder="0" />
-      </span>
-    </div>
-  </td></tr>`;
+  html += `</tbody></table></td></tr>`;
 
-  // 本月真实业绩 (auto)
+  // 本月真实业绩
   html += `<tr class="adj-row adj-real" data-month="${m}"><td colspan="${colspan}">
     <div class="adj-line">
       <span class="adj-label adj-real-label">${escapeHtml(monthLabel(m))} 本月真实业绩</span>
-      <span class="adj-val">真实销售额 <b>${fmtMoney(realSales)}</b></span>
-      <span class="adj-val">真实毛利 <b class="${realMargin<0?'neg':''}">${fmtMoney(realMargin)}</b></span>
+      <span class="adj-val">真实销售额 <b>${fmtMoney(realSales)}</b>
+        <span class="adj-formula">（本月 ${fmtMoney(currentAgg.price)} + 调入 ${fmtMoney(tiaoruSales)} − 调出 ${fmtMoney(tiaochuSales)}）</span>
+      </span>
+      <span class="adj-val">真实毛利 <b class="${realMargin<0?'neg':''}">${fmtMoney(realMargin)}</b>
+        <span class="adj-formula">（本月 ${fmtMoney(currentAgg.margin)} + 调入 ${fmtMoney(tiaoruMargin)} − 取消 ${fmtMoney(cancelMargin)}）</span>
+      </span>
       <span class="adj-val">真实毛利率 <b>${realPct!=null?fmtPct(realPct):'—'}</b></span>
     </div>
   </td></tr>`;
@@ -1720,20 +2027,61 @@ function attachDataHandlers(sh){
     });
   });
 
-  // Adjustment input boxes
-  tbody.querySelectorAll('.adj-input-box').forEach(inp=>{
-    inp.addEventListener('change', e=>{
-      const adjMonth = e.target.dataset.month;
-      const adjKey = e.target.dataset.adjKey;
-      const adjFullKey = `adj_${sh.key}_${adjMonth}`;
-      if(!STATE.inputs[adjFullKey]) STATE.inputs[adjFullKey] = {};
-      const v = e.target.value.trim();
-      if(v===''){ delete STATE.inputs[adjFullKey][adjKey]; }
-      else {
-        const cleaned = v.replace(/[$,\s]/g,'');
-        const n = Number(cleaned);
-        STATE.inputs[adjFullKey][adjKey] = isNaN(n)?v:n;
+  // === Adjustment sub-tables handlers ===
+
+  // 1. Order_no input — Enter to add new row (with lookup)
+  tbody.querySelectorAll('.adj-orderno-input').forEach(inp=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key !== 'Enter') return;
+      e.preventDefault();
+      const adjType = e.target.dataset.adjType;   // 'tiaoru' or 'tiaochu'
+      const m = e.target.dataset.month;
+      const orderNo = e.target.value.trim();
+      if(!orderNo){ return; }
+      handleAdjAddRow(sh, m, adjType, orderNo);
+      e.target.value = '';
+    });
+  });
+
+  // 2. Click to edit existing 调入/调出 row cells
+  tbody.addEventListener('dblclick', e=>{
+    const td = e.target.closest('.adj-cell');
+    if(!td) return;
+    if(td.classList.contains('adj-editing')) return;
+    beginEditAdjCell(td);
+  });
+  // Also single-click on the .adj-cell-key (cost in 调入 / margin in 调出) — most important fields
+  tbody.querySelectorAll('.adj-cell-key').forEach(cell=>{
+    cell.addEventListener('click', e=>{
+      if(cell.classList.contains('adj-editing')) return;
+      beginEditAdjCell(cell);
+    });
+  });
+
+  // 3. Delete buttons
+  tbody.querySelectorAll('.adj-del').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.preventDefault();
+      const adjType = btn.dataset.adjType;
+      const m = btn.dataset.month;
+      const i = +btn.dataset.i;
+      const adjKey = `adj_${sh.key}_${m}`;
+      const data = STATE.inputs[adjKey] || {};
+      const arr = adjType==='tiaoru' ? data.tiaoru_rows : data.tiaochu_rows;
+      if(!arr || !arr[i]) return;
+      const r = arr[i];
+      const hasData = Object.keys(r).some(k => !k.startsWith('source_') && r[k]!=null && r[k]!=='');
+      if(hasData && !confirm('该行有数据，确认删除？')) return;
+      // If it's a 调入 row tied to a source row, clear __costFilledMonth
+      if(adjType==='tiaoru' && r.source_month && r.source_idx != null){
+        const srcRows = getMonthRows(r.source_month, sh.key);
+        if(srcRows[r.source_idx] && srcRows[r.source_idx].__costFilledMonth === m){
+          delete srcRows[r.source_idx].__costFilledMonth;
+          saveMonthRows(r.source_month, sh.key, srcRows);
+        }
       }
+      arr.splice(i, 1);
+      STATE.inputs[adjKey] = data;
       saveMonth();
       renderSheet();
     });
