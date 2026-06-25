@@ -1031,19 +1031,37 @@ function computePLValue(store, rowKey, monthData){
    RENDER
    ============================================================ */
 function init(){
+  // Add a hidden input that captures focus
+  // This is the ONLY reliable way to stop Chrome Backspace = back-navigation
+  // (preventDefault in JS isn't always honored by Chrome)
+  if(!document.getElementById('djj-focus-trap')){
+    const trap = document.createElement('input');
+    trap.id = 'djj-focus-trap';
+    trap.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+    trap.setAttribute('aria-hidden', 'true');
+    trap.setAttribute('tabindex', '-1');
+    document.body.appendChild(trap);
+  }
+  // When user clicks anywhere on the body (and not on a real input), move focus to the trap
+  document.addEventListener('mousedown', e=>{
+    if(e.target.matches && e.target.matches('input, select, textarea, button, a, [contenteditable]')) return;
+    if(e.target.closest && e.target.closest('input, select, textarea, button, a, [contenteditable]')) return;
+    // Defer to next tick so the click can still process normally
+    setTimeout(()=>{
+      const trap = document.getElementById('djj-focus-trap');
+      if(trap && document.activeElement === document.body){
+        trap.focus({preventScroll:true});
+      }
+    }, 0);
+  });
+
   // Install global Backspace blocker FIRST, before anything else can interfere
   // Prevents browser back-navigation when a cell is selected
   document.addEventListener('keydown', e=>{
     if(e.key !== 'Backspace') return;
     const t = e.target;
-    const targetMatch = t && typeof t.matches === 'function' && t.matches('input, select, textarea, [contenteditable], [contenteditable="true"]');
-    console.log('[DJJ Backspace blocker]',
-      'target=', t ? (t.tagName + (t.className?'.'+t.className:'') + (t.id?'#'+t.id:'')) : 'null',
-      'isInput=', !!targetMatch,
-      'activeEl=', document.activeElement ? document.activeElement.tagName : 'null'
-    );
+    const targetMatch = t && typeof t.matches === 'function' && t.matches('input:not(#djj-focus-trap), select, textarea, [contenteditable], [contenteditable="true"]');
     if(targetMatch) return;
-    console.log('[DJJ Backspace blocker] → preventDefault + stopPropagation called');
     e.preventDefault();
     e.stopPropagation();
   }, true);
@@ -1051,21 +1069,13 @@ function init(){
   // Install global keyboard handler for cell editing/deleting/nav
   document.addEventListener('keydown', e=>{
     if(document.querySelector('td.editing')) return;
-    if(e.target && typeof e.target.matches === 'function' && e.target.matches('input, select, textarea, [contenteditable]')) return;
+    if(e.target && typeof e.target.matches === 'function' && e.target.matches('input:not(#djj-focus-trap), select, textarea, [contenteditable]')) return;
     const td = document.querySelector('td.sel');
-    if(!td){
-      if(e.key==='Backspace' || e.key==='Delete'){
-        console.log('[DJJ kbd] Backspace/Delete pressed but NO cell selected');
-      }
-      return;
-    }
+    if(!td) return;
     const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
     if(!sh || sh.kind!=='data') return;
 
     const key = e.key;
-    if(key==='Backspace' || key==='Delete'){
-      console.log('[DJJ kbd]', key, 'with cell selected — handling delete');
-    }
     if(key==='Backspace' || key==='Delete'){
       e.preventDefault();
       e.stopPropagation();
@@ -1110,7 +1120,6 @@ function init(){
       return;
     }
     if(key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
-      console.log('[DJJ kbd] direct typing key=', JSON.stringify(key), '→ begin edit');
       e.preventDefault();
       beginEditData(sh, td, key);
       return;
@@ -1162,11 +1171,27 @@ function renderTabs(){
 }
 
 function renderSheet(){
+  // Save scroll position of the grid scroller (the table's scrollable container)
+  const prevScroll = $('.grid-scroll');
+  const scrollTop = prevScroll ? prevScroll.scrollTop : 0;
+  const scrollLeft = prevScroll ? prevScroll.scrollLeft : 0;
+  // Also save the workspace scroll
+  const ws = document.querySelector('.workspace');
+  const wsTop = ws ? ws.scrollTop : 0;
+
   const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
   const wrap = $('#sheetWrap');
   if(sh.kind==='data') renderDataSheet(sh,wrap);
   else if(sh.kind==='recon') renderReconSheet(sh,wrap);
   else if(sh.kind==='pl') renderPLSheet(sh,wrap);
+
+  // Restore scroll positions
+  const newScroll = $('.grid-scroll');
+  if(newScroll){
+    newScroll.scrollTop = scrollTop;
+    newScroll.scrollLeft = scrollLeft;
+  }
+  if(ws) ws.scrollTop = wsTop;
 }
 
 /* ----- Data sheet (transaction list) ----- */
@@ -1265,32 +1290,37 @@ function renderDataSheet(sh, wrap){
   const isMonthEditable = (m)=> true;
 
   for(const m of monthsToShow){
-    const monthRows = loadMonthData(m);
+    let monthRows = loadMonthData(m);
     // Per-month serial counter (resets each month)
     let monthSerial = 0;
+
+    // Cleanup: drop trailing empty rows (they accumulate from ➕ clicks the user never filled)
+    // We only keep rows up to the last non-empty row + 1 trailing empty (for input convenience)
+    let lastDataIdx = -1;
+    monthRows.forEach((r,i)=>{
+      if(r && Object.keys(r).some(k=>!k.startsWith('__') && r[k]!=null && r[k]!=='')) lastDataIdx=i;
+    });
+    // Trim everything beyond lastDataIdx (we'll re-add 1 trailing empty below)
+    const trimmedLen = lastDataIdx + 1;
+    if(monthRows.length > trimmedLen){
+      monthRows = monthRows.slice(0, trimmedLen);
+      saveMonthRows(m, sh.key, monthRows);
+    }
+
     // Filter by store
     const visible = [];
     monthRows.forEach((r,i)=>{
       if(!r) return;
       if(filterStore && r.store && r.store!==filterStore) return;
-      // For all-months view, skip totally empty rows
-      const hasAny = Object.keys(r).some(k=>r[k]!=null && r[k]!=='');
-      if(!hasAny && monthsToShow.length>1) return;
       visible.push({row:r, index:i});
     });
 
-    // Add trailing empty rows only when viewing this month alone (single-month view)
-    const isSingleMonthView = monthsToShow.length === 1;
-    if(isSingleMonthView){
-      const emptyToAdd = Math.max(0, (sh.defaultEmptyRows||1));
-      let lastDataIdx = -1;
-      monthRows.forEach((r,i)=>{
-        if(r && Object.keys(r).some(k=>r[k]!=null && r[k]!=='')) lastDataIdx=i;
-      });
-      const needTotal = lastDataIdx + 1 + emptyToAdd;
-      while(monthRows.length < needTotal){ monthRows.push({}); }
+    // Add 1 trailing empty row (for direct in-grid input)
+    const emptyToAdd = Math.max(0, (sh.defaultEmptyRows||1));
+    if(emptyToAdd > 0){
+      for(let k=0;k<emptyToAdd;k++) monthRows.push({});
       saveMonthRows(m, sh.key, monthRows);
-      // Re-collect visible to include the newly added empties
+      // Re-collect to include new empties
       visible.length = 0;
       monthRows.forEach((r,i)=>{
         if(filterStore && r.store && r.store!==filterStore) return;
@@ -1589,17 +1619,23 @@ function attachDataHandlers(sh){
   if(!tbody) return;
 
   tbody.addEventListener('click', e=>{
-    // ➕ insert row into the active month (top-level month, not per-row)
+    // ➕ insert row into the active month
     if(e.target.closest('.btn-addrow')){
       e.preventDefault();
       const addRow = e.target.closest('tr.addrow');
       const m = addRow ? (addRow.dataset.month || STATE.month) : STATE.month;
-      console.log('[DJJ ➕]', 'clicked', 'addRow=', !!addRow, 'month=', m, 'sheet=', sh.key,
-        'rowsBefore=', getMonthRows(m, sh.key).length);
+      const newIdx = getMonthRows(m, sh.key).length;  // index of the new row
       addMonthRow(m, sh.key);
-      console.log('[DJJ ➕] addMonthRow done, rowsAfter=', getMonthRows(m, sh.key).length);
       renderSheet();
-      console.log('[DJJ ➕] renderSheet done');
+      // Scroll the new row into view + select its first editable cell
+      requestAnimationFrame(()=>{
+        const newRow = document.querySelector(`tr[data-month="${m}"][data-i="${newIdx}"]`);
+        if(newRow){
+          newRow.scrollIntoView({block:'center', behavior:'smooth'});
+          const firstEditable = newRow.querySelector('td.editable');
+          if(firstEditable) selectCell(firstEditable);
+        }
+      });
       return;
     }
     // − delete row
