@@ -195,13 +195,50 @@ tr.pending-margin:hover td.pending-icon .btn-delrow{display:flex}
 
 /* Subtotal row (month-level summary) */
 tr.subtotal-row td{
-  background:#f0f9ff;border-top:1.5px solid #93c5fd;border-bottom:1.5px solid #93c5fd;
+  background:#f0f9ff;border-top:1.5px solid #93c5fd;border-bottom:1px solid #93c5fd;
   font-weight:600;
 }
+tr.subtotal-row.sum-total td{
+  background:#dbeafe;border-top:2px solid var(--accent);
+}
+tr.subtotal-row.sum-total td .cell{color:var(--accent);font-weight:700}
+tr.subtotal-row.sum-store td{background:#eff6ff}
+tr.subtotal-row.sum-store td .cell{color:var(--accent);font-weight:500}
 tr.subtotal-row td .cell{padding:7px 9px;color:var(--accent)}
 tr.subtotal-row td.subtotal-label .cell{font-weight:600;color:var(--accent)}
 tr.subtotal-row td.subtotal-cell .cell{font-weight:600;color:var(--accent)}
 tr.subtotal-row td.subtotal-cell.neg .cell{color:var(--neg)}
+
+/* Adjustment section */
+tr.adj-section-header td{
+  background:#fef3c7;border-top:2px solid #f59e0b;border-bottom:1px solid #fcd34d;
+  padding:0;
+}
+tr.adj-section-header td .cell{
+  padding:7px 12px;font-weight:600;color:#92400e;font-size:12px;
+}
+tr.adj-row td{background:#fffbeb;border:none;border-bottom:1px solid #fde68a;padding:0}
+tr.adj-row.adj-real td{background:#ecfdf5;border-top:1px solid #6ee7b7;border-bottom:2px solid #6ee7b7}
+.adj-line{
+  display:flex;align-items:center;gap:18px;padding:8px 12px;flex-wrap:wrap;
+  font-size:12px;color:#78350f;
+}
+.adj-row.adj-real .adj-line{color:#065f46}
+.adj-label{font-weight:500;min-width:240px;color:#92400e}
+.adj-row.adj-real .adj-label{color:#047857;font-weight:600}
+.adj-real-label{font-weight:700}
+.adj-val{display:inline-flex;align-items:center;gap:4px;color:#92400e}
+.adj-val b{color:#78350f;font-family:'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.adj-row.adj-real .adj-val{color:#047857}
+.adj-row.adj-real .adj-val b{color:#065f46}
+.adj-row.adj-real .adj-val b.neg{color:var(--neg)}
+.adj-detail{color:#a16207;font-size:11px;font-style:italic;flex-basis:100%;margin-top:3px;padding-left:8px}
+.adj-input-box{
+  width:100px;border:1px solid #fcd34d;background:#fff;border-radius:4px;
+  padding:3px 8px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;
+  text-align:right;color:#78350f;outline:none;
+}
+.adj-input-box:focus{border-color:#f59e0b;box-shadow:0 0 0 2px #fde68a}
 
 /* Historical (non-editable) rows */
 tr.historical td{background:#fafafa}
@@ -638,6 +675,72 @@ const PL_ROWS = [
 ];
 
 /* ============================================================
+   PER-MONTH DATA ACCESSORS
+   Each row in a managed sheet belongs to a specific month.
+   These helpers read/write to the right month (current = STATE, others = localStorage)
+   ============================================================ */
+function getMonthRows(month, sheetKey){
+  if(month === STATE.month){
+    if(!STATE.data[sheetKey]) STATE.data[sheetKey] = [];
+    return STATE.data[sheetKey];
+  }
+  const raw = localStorage.getItem(LS_BOOK(month));
+  if(!raw) return [];
+  try{ const b = JSON.parse(raw); return (b.data && b.data[sheetKey]) || []; }
+  catch(e){ return []; }
+}
+function saveMonthRows(month, sheetKey, rows){
+  if(month === STATE.month){
+    STATE.data[sheetKey] = rows;
+    saveMonth();
+    return;
+  }
+  const raw = localStorage.getItem(LS_BOOK(month));
+  let book = {data:{}, inputs:{}};
+  if(raw){ try{ book = JSON.parse(raw); }catch(e){} }
+  if(!book.data) book.data = {};
+  book.data[sheetKey] = rows;
+  localStorage.setItem(LS_BOOK(month), JSON.stringify(book));
+  const months = listMonths();
+  if(!months.includes(month)){
+    months.push(month);
+    saveMonthsList(months);
+  }
+}
+function setMonthCell(month, sheetKey, rowIdx, colKey, value, colType){
+  const rows = getMonthRows(month, sheetKey);
+  while(rows.length <= rowIdx) rows.push({});
+  let parsed = value;
+  if(value !== '' && (colType==='money' || colType==='number')){
+    const cleaned = String(value).replace(/[$,\s]/g,'').trim();
+    const n = Number(cleaned);
+    if(!isNaN(n) && cleaned!=='') parsed = n;
+  }
+  if(value===''){ delete rows[rowIdx][colKey]; }
+  else { rows[rowIdx][colKey] = parsed; }
+  // Track 调入: when cost is filled in a different month than the row's month, mark it
+  if(colKey==='cost' && value!=='' && sheetKey==='sales'){
+    if(!rows[rowIdx].__costFilledMonth && month !== STATE.month){
+      // Cost filled later — this is a 调入 candidate
+      rows[rowIdx].__costFilledMonth = STATE.month;
+    } else if(!rows[rowIdx].__costFilledMonth){
+      rows[rowIdx].__costFilledMonth = month;  // filled in same month
+    }
+  }
+  saveMonthRows(month, sheetKey, rows);
+}
+function addMonthRow(month, sheetKey){
+  const rows = getMonthRows(month, sheetKey);
+  rows.push({});
+  saveMonthRows(month, sheetKey, rows);
+}
+function deleteMonthRow(month, sheetKey, rowIdx){
+  const rows = getMonthRows(month, sheetKey);
+  rows.splice(rowIdx, 1);
+  saveMonthRows(month, sheetKey, rows);
+}
+
+/* ============================================================
    COLUMN WIDTHS — per-sheet persistent
    ============================================================ */
 const LS_COLW = 'djj2_colw';
@@ -928,6 +1031,91 @@ function computePLValue(store, rowKey, monthData){
    RENDER
    ============================================================ */
 function init(){
+  // Install global Backspace blocker FIRST, before anything else can interfere
+  // Prevents browser back-navigation when a cell is selected
+  document.addEventListener('keydown', e=>{
+    if(e.key !== 'Backspace') return;
+    const t = e.target;
+    if(t && typeof t.matches === 'function' && t.matches('input, select, textarea, [contenteditable], [contenteditable="true"]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+
+  // Install global keyboard handler for cell editing/deleting/nav
+  // Single registration ensures it always works (not per-sheet-render)
+  document.addEventListener('keydown', e=>{
+    if(document.querySelector('td.editing')) return;
+    if(e.target && typeof e.target.matches === 'function' && e.target.matches('input, select, textarea, [contenteditable]')) return;
+    const td = document.querySelector('td.sel');
+    if(!td) return;
+    const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
+    if(!sh || sh.kind!=='data') return;
+
+    const key = e.key;
+    if(key==='Backspace' || key==='Delete'){
+      e.preventDefault();
+      e.stopPropagation();
+      const selectedCells = document.querySelectorAll('td.sel');
+      const touchedMonths = new Set();
+      let changedAny = false;
+      for(const cell of selectedCells){
+        if(!cell.classList.contains('editable')) continue;
+        const cellTr = cell.closest('tr');
+        const cellMonth = (cellTr && cellTr.dataset.month) || STATE.month;
+        const i = +cell.dataset.i, colKey = cell.dataset.col;
+        const rows = getMonthRows(cellMonth, sh.key);
+        if(rows[i] && rows[i][colKey] != null){
+          delete rows[i][colKey];
+          if(colKey === 'cost' && rows[i].__costFilledMonth){
+            delete rows[i].__costFilledMonth;
+          }
+          touchedMonths.add(cellMonth);
+          changedAny = true;
+        }
+      }
+      for(const m of touchedMonths){
+        saveMonthRows(m, sh.key, getMonthRows(m, sh.key));
+      }
+      if(changedAny){
+        renderSheet();
+        const restore = ()=>{
+          const newTd = document.querySelector(`tr[data-month="${td.closest('tr').dataset.month}"] td[data-i="${td.dataset.i}"][data-col="${td.dataset.col}"]`);
+          if(newTd) selectCell(newTd);
+        };
+        if(typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(restore);
+        else setTimeout(restore, 0);
+      }
+      return;
+    }
+
+    if(!td.classList.contains('editable')) return;
+
+    if(key==='Enter' || key==='F2'){
+      e.preventDefault();
+      beginEditData(sh, td);
+      return;
+    }
+    if(key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
+      e.preventDefault();
+      beginEditData(sh, td, key);
+      return;
+    }
+    const moves = {ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1]};
+    if(moves[key]){
+      e.preventDefault();
+      const [dr,dc] = moves[key];
+      const i = +td.dataset.i, colKey = td.dataset.col;
+      const colIdx = sh.columns.findIndex(c=>c.key===colKey);
+      const newColIdx = Math.max(0, Math.min(sh.columns.length-1, colIdx+dc));
+      const newRowI = Math.max(0, i+dr);
+      const newCol = sh.columns[newColIdx];
+      const tr = td.closest('tr');
+      const m = tr ? tr.dataset.month : STATE.month;
+      const newTd = document.querySelector(`tr[data-month="${m}"] td[data-i="${newRowI}"][data-col="${newCol.key}"]`);
+      if(newTd) selectCell(newTd);
+    }
+  }, true);  // CAPTURE phase
+
   loadCloudCfg();
   loadMonth(STATE.month);
   renderMonthSelect();
@@ -1056,17 +1244,15 @@ function renderDataSheet(sh, wrap){
 
   // Cols that can be summed (money or number, but NOT formula-based)
   const sumCols = sh.columns.filter(c => (c.type==='money'||c.type==='number') && !c.formula);
-  // Cols where we want to show "平均" (avg) instead of sum — e.g. percentage
   const pctCols = sh.columns.filter(c => c.type==='pct');
 
-  let globalSerial = 0;
-  let firstMonthRendered = monthsToShow[0];
-  // For the *current* month, ensure trailing empty rows for input
-  const isShowingCurrentOnly = monthsToShow.length===1 && monthsToShow[0]===STATE.month;
-  let isMonthEditable = (m)=> m === STATE.month;
+  // Every month is editable (not just "current month")
+  const isMonthEditable = (m)=> true;
 
   for(const m of monthsToShow){
     const monthRows = loadMonthData(m);
+    // Per-month serial counter (resets each month)
+    let monthSerial = 0;
     // Filter by store
     const visible = [];
     monthRows.forEach((r,i)=>{
@@ -1074,12 +1260,13 @@ function renderDataSheet(sh, wrap){
       if(filterStore && r.store && r.store!==filterStore) return;
       // For all-months view, skip totally empty rows
       const hasAny = Object.keys(r).some(k=>r[k]!=null && r[k]!=='');
-      if(!hasAny && !isMonthEditable(m)) return;
+      if(!hasAny && monthsToShow.length>1) return;
       visible.push({row:r, index:i});
     });
 
-    // For the editable (current) month, ensure trailing empty rows
-    if(isMonthEditable(m)){
+    // Add trailing empty rows only when viewing this month alone (single-month view)
+    const isSingleMonthView = monthsToShow.length === 1;
+    if(isSingleMonthView){
       const emptyToAdd = Math.max(0, (sh.defaultEmptyRows||1));
       let lastDataIdx = -1;
       monthRows.forEach((r,i)=>{
@@ -1087,7 +1274,7 @@ function renderDataSheet(sh, wrap){
       });
       const needTotal = lastDataIdx + 1 + emptyToAdd;
       while(monthRows.length < needTotal){ monthRows.push({}); }
-      STATE.data[sh.key] = monthRows;
+      saveMonthRows(m, sh.key, monthRows);
       // Re-collect visible to include the newly added empties
       visible.length = 0;
       monthRows.forEach((r,i)=>{
@@ -1096,33 +1283,36 @@ function renderDataSheet(sh, wrap){
       });
     }
 
-    if(visible.length === 0 && !isMonthEditable(m)) continue;
+    if(visible.length === 0) continue;
 
     // Render month rows
     for(const {row,index} of visible){
-      globalSerial++;
+      monthSerial++;
       const isPending = sh.key==='sales' && row && row.price!=null && row.price!=='' && (row.cost==null || row.cost==='');
-      const rowCls = 'mgrow' + (isPending ? ' pending-margin' : '') + (isMonthEditable(m) ? '' : ' historical');
+      const rowCls = 'mgrow' + (isPending ? ' pending-margin' : '');
       html += `<tr class="${rowCls}" data-month="${m}" data-i="${index}">`;
-      const showDel = isMonthEditable(m);
       if(isPending){
-        html += `<td class="rowctrl pending-icon" title="待补充采购价"><span class="warn-icon">⚠</span>${showDel?`<button class="btn-delrow" data-i="${index}" title="删除此行">−</button>`:''}</td>`;
+        html += `<td class="rowctrl pending-icon" title="待补充采购价"><span class="warn-icon">⚠</span><button class="btn-delrow" data-i="${index}" title="删除此行">−</button></td>`;
       } else {
-        html += `<td class="rowctrl">${showDel?`<button class="btn-delrow" data-i="${index}" title="删除此行">−</button>`:''}</td>`;
+        html += `<td class="rowctrl"><button class="btn-delrow" data-i="${index}" title="删除此行">−</button></td>`;
       }
-      // Compute formula + override auto-month to use this month
       const computed = computeDataRow(sh,row);
-      // For auto-month column, force the value to current row's month
       const computedWithMonth = {...computed, __rowMonth: m};
       for(const col of sh.columns){
-        html += renderDataCell(sh, col, computedWithMonth, row, index, globalSerial, !isMonthEditable(m));
+        html += renderDataCell(sh, col, computedWithMonth, row, index, monthSerial, false);
       }
       html += `</tr>`;
     }
 
     // Subtotal row for this month (only if there's at least one non-empty row)
     const nonEmpty = visible.filter(v => v.row && Object.keys(v.row).some(k=>v.row[k]!=null && v.row[k]!==''));
-    if(nonEmpty.length > 0){
+    if(nonEmpty.length > 0 && sh.key === 'sales'){
+      // === Sales sheet: 4-row breakdown (total + 3 stores) ===
+      html += renderSalesMonthSummary(sh, m, nonEmpty);
+      // === 调整之前月份数据 section ===
+      html += renderAdjustmentSection(sh, m, nonEmpty);
+    } else if(nonEmpty.length > 0){
+      // Other data sheets: single row summary
       html += `<tr class="subtotal-row" data-month="${m}">`;
       html += `<td class="rowctrl"></td>`;
       let labelDone = false;
@@ -1135,51 +1325,37 @@ function renderDataSheet(sh, wrap){
           const cls = total<0 ? ' neg' : '';
           html += `<td class="subtotal-cell num${cls}"><div class="cell">${col.type==='money'?fmtMoney(total):fmtNum(total)}</div></td>`;
         } else if(col.formula && col.type==='money'){
-          // Sum of formula values
           const total = nonEmpty.reduce((s,v)=>{
             const computed = computeDataRow(sh,v.row);
             return s + num(computed[col.key]);
           },0);
           const cls = total<0 ? ' neg' : '';
           html += `<td class="subtotal-cell num${cls}"><div class="cell">${fmtMoney(total)}</div></td>`;
-        } else if(col.type==='pct' || (col.formula && col.type==='pct')){
-          // Weighted avg: sum(price-cost) / sum(price)
-          if(col.key === 'margin_pct'){
-            const totalPrice = nonEmpty.reduce((s,v)=>s+num(v.row.price),0);
-            const totalCost  = nonEmpty.reduce((s,v)=>s+num(v.row.cost),0);
-            const avg = totalPrice ? (totalPrice-totalCost)/totalPrice : null;
-            const cls = avg!=null && avg<0 ? ' neg' : '';
-            html += `<td class="subtotal-cell num pct${cls}"><div class="cell">${avg!=null?fmtPct(avg):''}</div></td>`;
-          } else {
-            html += `<td class="subtotal-cell"></td>`;
-          }
-        } else if(col.type==='number' && col.key==='qty'){
-          const total = nonEmpty.reduce((s,v)=>s+num(v.row[col.key]),0);
-          html += `<td class="subtotal-cell num"><div class="cell">${fmtNum(total)}</div></td>`;
         } else {
           html += `<td class="subtotal-cell"></td>`;
         }
       }
       html += `</tr>`;
     }
-  }
 
-  // ➕ button
-  html += `<tr class="addrow"><td colspan="${sh.columns.length+1}">
-    <button class="btn-addrow" id="btnAddRow">＋ 插入一行</button>
-  </td></tr>`;
+    // ➕ button for THIS month
+    html += `<tr class="addrow" data-month="${m}"><td colspan="${sh.columns.length+1}">
+      <button class="btn-addrow">＋ 在 ${escapeHtml(monthLabel(m))} 插入一行</button>
+    </td></tr>`;
+  }
 
   // Footer
   if(sh.footer){
     const f = sh.footer;
+    // Count across all months shown
+    const allShownRows = monthsToShow.flatMap(m=>loadMonthData(m));
     html += `<tr class="footer-row">`;
     html += `<td class="rowctrl"></td>`;
     for(const col of sh.columns){
       if(col.key===f.label_col){
         html += `<td class="footer-label"><div class="cell">${escapeHtml(f.label)}</div></td>`;
       } else if(f.auto && col.key===f.auto.col){
-        // count of rows where source col is non-empty
-        const cnt = rows.filter(r=>r && r[f.auto.source]!=null && String(r[f.auto.source]).trim()!=='').length;
+        const cnt = allShownRows.filter(r=>r && r[f.auto.source]!=null && String(r[f.auto.source]).trim()!=='').length;
         html += `<td class="footer-auto"><div class="cell"><b>${escapeHtml(f.auto.label)}：</b>${cnt}</div></td>`;
       } else if(f.input && col.key===f.input.col){
         const key = `${sh.key}__${STATE.month}__${f.input.col}`;
@@ -1196,6 +1372,159 @@ function renderDataSheet(sh, wrap){
   html += `</tbody></table></div>`;
   wrap.innerHTML = html;
   attachDataHandlers(sh);
+}
+
+/* ----- Summary rendering helpers for sales sheet ----- */
+function aggregateSalesRows(rows){
+  // Returns {qty, price_total, cost_total, margin_total, margin_pct}
+  let qty = 0, price = 0, cost = 0, withMargin = 0;
+  for(const r of rows){
+    if(!r) continue;
+    qty += num(r.qty);
+    price += num(r.price);
+    // Only count cost if it's actually filled (otherwise it's pending)
+    if(r.cost != null && r.cost !== ''){
+      cost += num(r.cost);
+      withMargin++;
+    }
+  }
+  const margin = price - cost;
+  const margin_pct = price ? margin / price : null;
+  return {qty, price, cost, margin, margin_pct, count:rows.length};
+}
+
+function renderSalesMonthSummary(sh, m, rowsWithIdx){
+  // Build a 4-row summary: total, then 3 stores
+  const rows = rowsWithIdx.map(v=>v.row);
+  const totalAgg = aggregateSalesRows(rows);
+  const storeAggs = STORES.map(st => ({
+    store: st,
+    agg: aggregateSalesRows(rows.filter(r=>r.store===st)),
+  }));
+
+  let html = '';
+  const colspan = sh.columns.length + 1;  // include rowctrl
+
+  // Helper: render one summary row
+  function summaryRow(label, agg, kind){
+    let h = `<tr class="subtotal-row ${kind}" data-month="${m}">`;
+    h += `<td class="rowctrl"></td>`;
+    let labelDone = false;
+    for(const col of sh.columns){
+      if(!labelDone && (col.type==='text' || col.type==='date' || col.type==='auto-month')){
+        h += `<td class="subtotal-label"><div class="cell">${escapeHtml(label)} · ${agg.qty} 台</div></td>`;
+        labelDone = true;
+      } else if(col.key === 'qty'){
+        h += `<td class="subtotal-cell num"><div class="cell">${fmtNum(agg.qty)}</div></td>`;
+      } else if(col.key === 'cost'){
+        h += `<td class="subtotal-cell num"><div class="cell">${fmtMoney(agg.cost)}</div></td>`;
+      } else if(col.key === 'price'){
+        h += `<td class="subtotal-cell num"><div class="cell">${fmtMoney(agg.price)}</div></td>`;
+      } else if(col.key === 'margin'){
+        const cls = agg.margin<0 ? ' neg' : '';
+        h += `<td class="subtotal-cell num${cls}"><div class="cell">${fmtMoney(agg.margin)}</div></td>`;
+      } else if(col.key === 'margin_pct'){
+        h += `<td class="subtotal-cell num pct"><div class="cell">${agg.margin_pct!=null?fmtPct(agg.margin_pct):''}</div></td>`;
+      } else {
+        h += `<td class="subtotal-cell"></td>`;
+      }
+    }
+    h += `</tr>`;
+    return h;
+  }
+
+  html += summaryRow(`${monthLabel(m)} 合计`, totalAgg, 'sum-total');
+  for(const s of storeAggs){
+    if(s.agg.count > 0){
+      html += summaryRow(`${monthLabel(m)} ${s.store}小计`, s.agg, 'sum-store');
+    }
+  }
+  return html;
+}
+
+function renderAdjustmentSection(sh, m, currentMonthRowsWithIdx){
+  // 调入: rows from earlier months where __costFilledMonth === m (cost was filled this month)
+  // 调出: manual input (cancelled this month's prior-month order)
+  // 取消调出毛利: manual input (margin reversal for cancellations)
+  const colspan = sh.columns.length + 1;
+
+  // Find 调入 rows: scan ALL months for sales rows where __costFilledMonth === m AND the row's own month < m
+  const allMonths = listMonths();
+  const tiaoruRows = [];
+  for(const otherMonth of allMonths){
+    if(otherMonth >= m) continue;  // only earlier months
+    const otherRows = getMonthRows(otherMonth, sh.key);
+    otherRows.forEach((r,i)=>{
+      if(!r) return;
+      if(r.__costFilledMonth === m){
+        tiaoruRows.push({row:r, fromMonth:otherMonth, rowIdx:i});
+      }
+    });
+  }
+
+  // Aggregate 调入
+  const tiaoruAgg = aggregateSalesRows(tiaoruRows.map(t=>t.row));
+
+  // Read manual inputs for 调出/取消
+  const adjKey = `adj_${sh.key}_${m}`;
+  const adjData = STATE.inputs[adjKey] || {};
+  const tiaochuSales = num(adjData.tiaochu_sales);     // 调出销售额 (手填)
+  const cancelMargin = num(adjData.cancel_margin);     // 取消调出毛利 (手填)
+
+  // 本月真实业绩 = 本月合计 + 调入 - 调出
+  const currentAgg = aggregateSalesRows(currentMonthRowsWithIdx.map(v=>v.row));
+  const realSales = currentAgg.price + tiaoruAgg.price - tiaochuSales;
+  const realMargin = currentAgg.margin + tiaoruAgg.margin - cancelMargin;
+  const realPct = realSales ? realMargin / realSales : null;
+
+  let html = '';
+  // Section header
+  html += `<tr class="adj-section-header"><td colspan="${colspan}"><div class="cell">${escapeHtml(monthLabel(m))} 调整之前月份数据</div></td></tr>`;
+
+  // 调入 row (auto)
+  html += `<tr class="adj-row adj-auto" data-month="${m}"><td colspan="${colspan}">
+    <div class="adj-line">
+      <span class="adj-label">调入（来自之前月份补充采购价）</span>
+      <span class="adj-val">销售额 <b>${fmtMoney(tiaoruAgg.price)}</b></span>
+      <span class="adj-val">毛利 <b>${fmtMoney(tiaoruAgg.margin)}</b></span>
+      <span class="adj-val">${tiaoruAgg.count} 条</span>
+      ${tiaoruRows.length>0?`<span class="adj-detail">${tiaoruRows.map(t=>escapeHtml((t.row.order_no||'?')+'@'+monthLabel(t.fromMonth))).join('、')}</span>`:''}
+    </div>
+  </td></tr>`;
+
+  // 调出销售额 (手填)
+  html += `<tr class="adj-row adj-input" data-month="${m}"><td colspan="${colspan}">
+    <div class="adj-line">
+      <span class="adj-label">调出（之前月份订单取消，销售额）</span>
+      <span class="adj-val">销售额
+        <input class="adj-input-box" data-month="${m}" data-adj-key="tiaochu_sales" type="text"
+          value="${adjData.tiaochu_sales!=null?escapeHtml(String(adjData.tiaochu_sales)):''}" placeholder="0" />
+      </span>
+    </div>
+  </td></tr>`;
+
+  // 取消调出毛利 (手填)
+  html += `<tr class="adj-row adj-input" data-month="${m}"><td colspan="${colspan}">
+    <div class="adj-line">
+      <span class="adj-label">取消调出毛利（取消订单冲销的毛利）</span>
+      <span class="adj-val">毛利
+        <input class="adj-input-box" data-month="${m}" data-adj-key="cancel_margin" type="text"
+          value="${adjData.cancel_margin!=null?escapeHtml(String(adjData.cancel_margin)):''}" placeholder="0" />
+      </span>
+    </div>
+  </td></tr>`;
+
+  // 本月真实业绩 (auto)
+  html += `<tr class="adj-row adj-real" data-month="${m}"><td colspan="${colspan}">
+    <div class="adj-line">
+      <span class="adj-label adj-real-label">${escapeHtml(monthLabel(m))} 本月真实业绩</span>
+      <span class="adj-val">真实销售额 <b>${fmtMoney(realSales)}</b></span>
+      <span class="adj-val">真实毛利 <b class="${realMargin<0?'neg':''}">${fmtMoney(realMargin)}</b></span>
+      <span class="adj-val">真实毛利率 <b>${realPct!=null?fmtPct(realPct):'—'}</b></span>
+    </div>
+  </td></tr>`;
+
+  return html;
 }
 
 function renderDataCell(sh, col, computed, raw, rowIdx, serial, historicalReadonly){
@@ -1245,34 +1574,43 @@ function attachDataHandlers(sh){
   if(!tbody) return;
 
   tbody.addEventListener('click', e=>{
-    // ➕
-    if(e.target.closest('#btnAddRow')){
+    // ➕ insert row into the active month (top-level month, not per-row)
+    if(e.target.closest('.btn-addrow')){
       e.preventDefault();
-      (STATE.data[sh.key] = STATE.data[sh.key]||[]).push({});
-      saveMonth(); renderSheet();
+      const addRow = e.target.closest('tr.addrow');
+      const m = addRow ? (addRow.dataset.month || STATE.month) : STATE.month;
+      addMonthRow(m, sh.key);
+      renderSheet();
       return;
     }
-    // −
+    // − delete row
     const delBtn = e.target.closest('.btn-delrow');
     if(delBtn){
       e.preventDefault();
       const i = +delBtn.dataset.i;
-      const row = (STATE.data[sh.key]||[])[i];
+      const tr = delBtn.closest('tr');
+      const rowMonth = tr ? (tr.dataset.month || STATE.month) : STATE.month;
+      const rows = getMonthRows(rowMonth, sh.key);
+      const row = rows[i];
       const hasData = row && Object.keys(row).some(k=>{
         const col = sh.columns.find(c=>c.key===k);
         if(col && (col.type==='auto-serial'||col.type==='auto-month'||col.formula)) return false;
+        if(k.startsWith('__')) return false;  // internal fields
         return row[k]!=null && row[k]!=='';
       });
-      if(hasData){ toast('该行有内容，不能直接删除',true); return; }
-      STATE.data[sh.key].splice(i,1);
-      saveMonth(); renderSheet();
+      if(hasData){
+        const ok = confirm('该行有数据，确认删除？\n\n（删除后无法恢复）');
+        if(!ok) return;
+      }
+      deleteMonthRow(rowMonth, sh.key, i);
+      renderSheet();
       return;
     }
     if(e.target.closest('input.finput')) return;
     const td = e.target.closest('td');
     if(!td || td.classList.contains('rowctrl')) return;
     if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
-    if(td.closest('tr.historical')) return;
+    if(td.closest('tr.adj-row')) return;
     // Shift+click: select range from current anchor to this cell
     if(e.shiftKey){
       const anchor = document.querySelector('td.sel');
@@ -1291,7 +1629,7 @@ function attachDataHandlers(sh){
     const td = e.target.closest('td');
     if(!td || td.classList.contains('rowctrl')) return;
     if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
-    if(td.closest('tr.historical')) return;
+    
     if(e.target.closest('.col-resize, button, input, select')) return;
     if(e.shiftKey) return;  // shift handled in click
     dragAnchor = td;
@@ -1300,7 +1638,7 @@ function attachDataHandlers(sh){
     if(!dragAnchor || e.buttons !== 1) return;
     const td = e.target.closest('td');
     if(!td || td === dragAnchor) return;
-    if(td.closest('tr.historical')) return;
+    
     if(td.classList.contains('rowctrl')) return;
     selectRange(dragAnchor, td);
     e.preventDefault();  // prevent text selection
@@ -1311,97 +1649,38 @@ function attachDataHandlers(sh){
     const td = e.target.closest('td');
     if(!td || !td.classList.contains('editable')) return;
     if(td.closest('tr.addrow') || td.closest('tr.footer-row') || td.closest('tr.subtotal-row')) return;
-    if(td.closest('tr.historical')) return;
+    
     beginEditData(sh, td);
   });
 
   // Keyboard: Delete/Backspace clears, Enter/F2 enters edit, direct typing replaces
   // Listen on document so it fires even if focus isn't on a cell
-  // CAPTURE phase ensures we intercept before browser default (e.g. Backspace = back nav)
-  if(!window.__djj_kbd_installed){
-    window.__djj_kbd_installed = true;
-    document.addEventListener('keydown', e=>{
-      // Skip if user is editing (input focused) or in a form control
-      if(document.querySelector('td.editing')) return;
-      if(e.target && typeof e.target.matches === 'function' && e.target.matches('input, select, textarea, [contenteditable]')) return;
-      const td = document.querySelector('td.sel');
-      if(!td) return;
-      const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
-      if(!sh || sh.kind!=='data') return;
-
-      const key = e.key;
-      // Always prevent default for Backspace if we have a selection (to stop browser back-navigation)
-      if(key==='Backspace' || key==='Delete'){
-        e.preventDefault();
-        e.stopPropagation();
-        // Batch delete: if multiple cells are selected, clear all
-        const selectedCells = document.querySelectorAll('td.sel');
-        let changedAny = false;
-        for(const cell of selectedCells){
-          if(!cell.classList.contains('editable')) continue;
-          if(cell.closest('tr.historical')) continue;
-          const i = +cell.dataset.i, colKey = cell.dataset.col;
-          if(STATE.data[sh.key] && STATE.data[sh.key][i] && STATE.data[sh.key][i][colKey] != null){
-            delete STATE.data[sh.key][i][colKey];
-            changedAny = true;
-          }
-        }
-        if(changedAny){
-          saveMonth(); renderSheet();
-          // Try to restore selection on the originally-anchored cell
-          const restore = ()=>{
-            const newTd = document.querySelector(`td[data-i="${td.dataset.i}"][data-col="${td.dataset.col}"]`);
-            if(newTd) selectCell(newTd);
-          };
-          if(typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(restore);
-          else setTimeout(restore, 0);
-        }
-        return;
-      }
-
-      if(!td.classList.contains('editable')) return;
-
-      if(key==='Enter' || key==='F2'){
-        e.preventDefault();
-        beginEditData(sh, td);
-        return;
-      }
-      // Direct typing: any printable single char starts editing & overwrites
-      if(key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
-        e.preventDefault();
-        beginEditData(sh, td, key);
-        return;
-      }
-      // Arrow key navigation
-      const moves = {ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1]};
-      if(moves[key]){
-        e.preventDefault();
-        const [dr,dc] = moves[key];
-        const i = +td.dataset.i, colKey = td.dataset.col;
-        const colIdx = sh.columns.findIndex(c=>c.key===colKey);
-        const newColIdx = Math.max(0, Math.min(sh.columns.length-1, colIdx+dc));
-        const newRowI = Math.max(0, i+dr);
-        const newCol = sh.columns[newColIdx];
-        const newTd = document.querySelector(`td[data-i="${newRowI}"][data-col="${newCol.key}"]`);
-        if(newTd) selectCell(newTd);
-      }
-    }, true);   // <-- USE CAPTURE phase
-
-    // Also catch Backspace specifically at document level to prevent back nav
-    window.addEventListener('keydown', e=>{
-      if(e.key==='Backspace' && (!e.target || typeof e.target.matches !== 'function' || !e.target.matches('input, select, textarea, [contenteditable]'))){
-        if(document.querySelector('td.sel') && !document.querySelector('td.editing')){
-          e.preventDefault();
-        }
-      }
-    }, true);
-  }
+  // (Keyboard handler is registered globally in init() — see top of file)
 
   tbody.querySelectorAll('input.finput').forEach(inp=>{
     inp.addEventListener('input', e=>{
       const k = e.target.dataset.key, v = e.target.value;
       if(v.trim()==='') localStorage.removeItem('djj2_finput_'+k);
       else localStorage.setItem('djj2_finput_'+k, v);
+    });
+  });
+
+  // Adjustment input boxes
+  tbody.querySelectorAll('.adj-input-box').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const adjMonth = e.target.dataset.month;
+      const adjKey = e.target.dataset.adjKey;
+      const adjFullKey = `adj_${sh.key}_${adjMonth}`;
+      if(!STATE.inputs[adjFullKey]) STATE.inputs[adjFullKey] = {};
+      const v = e.target.value.trim();
+      if(v===''){ delete STATE.inputs[adjFullKey][adjKey]; }
+      else {
+        const cleaned = v.replace(/[$,\s]/g,'');
+        const n = Number(cleaned);
+        STATE.inputs[adjFullKey][adjKey] = isNaN(n)?v:n;
+      }
+      saveMonth();
+      renderSheet();
     });
   });
 
@@ -1560,7 +1839,11 @@ function beginEditData(sh, td, startWith){
   const colKey = td.dataset.col;
   const col = sh.columns.find(c=>c.key===colKey);
   if(!col) return;
-  const row = (STATE.data[sh.key]||[])[i] || {};
+  // Determine which month this row belongs to
+  const tr = td.closest('tr');
+  const rowMonth = (tr && tr.dataset.month) || STATE.month;
+  const monthRows = getMonthRows(rowMonth, sh.key);
+  const row = monthRows[i] || {};
   const cur = startWith != null ? startWith : (row[colKey] !== undefined ? row[colKey] : '');
 
   td.classList.add('editing');
@@ -1571,12 +1854,11 @@ function beginEditData(sh, td, startWith){
   const inp = td.querySelector('input');
   inp.focus();
   if(col.type!=='date' && startWith == null) inp.select();
-  // If startWith provided, position cursor at end
   if(startWith != null && col.type!=='date') inp.setSelectionRange(inp.value.length, inp.value.length);
 
   let committed=false;
   const commit = save=>{ if(committed)return; committed=true; td.classList.remove('editing');
-    if(save){ setCell(sh,i,colKey,inp.value); } else { renderSheet(); } };
+    if(save){ setCell(sh,i,colKey,inp.value,rowMonth); } else { renderSheet(); } };
   inp.addEventListener('keydown',ev=>{
     if(ev.key==='Enter'){ commit(true); }
     else if(ev.key==='Escape') commit(false);
@@ -1585,19 +1867,12 @@ function beginEditData(sh, td, startWith){
   inp.addEventListener('blur',()=>commit(true));
 }
 
-function setCell(sh, rowIdx, colKey, value){
-  if(!STATE.data[sh.key]) STATE.data[sh.key] = [];
-  while(STATE.data[sh.key].length <= rowIdx) STATE.data[sh.key].push({});
+function setCell(sh, rowIdx, colKey, value, month){
+  // month param: which month this row belongs to (defaults to current)
+  month = month || STATE.month;
   const col = sh.columns.find(c=>c.key===colKey);
-  let parsed = value;
-  if(value !== '' && (col.type==='money' || col.type==='number')){
-    // Strip $, commas, spaces before parsing
-    const cleaned = String(value).replace(/[$,\s]/g,'').trim();
-    const n = Number(cleaned); if(!isNaN(n) && cleaned!=='') parsed = n;
-  }
-  if(value===''){ delete STATE.data[sh.key][rowIdx][colKey]; }
-  else { STATE.data[sh.key][rowIdx][colKey] = parsed; }
-  saveMonth(); renderSheet();
+  setMonthCell(month, sh.key, rowIdx, colKey, value, col?col.type:null);
+  renderSheet();
   setSync('saving','保存中…');
   if(CLOUD.client){ cloudSaveBook().then(()=>setSync('ok','已同步云端')).catch(()=>setSync('err','云端失败')); }
   else setSync('','本地已保存');
