@@ -1036,22 +1036,36 @@ function init(){
   document.addEventListener('keydown', e=>{
     if(e.key !== 'Backspace') return;
     const t = e.target;
-    if(t && typeof t.matches === 'function' && t.matches('input, select, textarea, [contenteditable], [contenteditable="true"]')) return;
+    const targetMatch = t && typeof t.matches === 'function' && t.matches('input, select, textarea, [contenteditable], [contenteditable="true"]');
+    console.log('[DJJ Backspace blocker]',
+      'target=', t ? (t.tagName + (t.className?'.'+t.className:'') + (t.id?'#'+t.id:'')) : 'null',
+      'isInput=', !!targetMatch,
+      'activeEl=', document.activeElement ? document.activeElement.tagName : 'null'
+    );
+    if(targetMatch) return;
+    console.log('[DJJ Backspace blocker] → preventDefault + stopPropagation called');
     e.preventDefault();
     e.stopPropagation();
   }, true);
 
   // Install global keyboard handler for cell editing/deleting/nav
-  // Single registration ensures it always works (not per-sheet-render)
   document.addEventListener('keydown', e=>{
     if(document.querySelector('td.editing')) return;
     if(e.target && typeof e.target.matches === 'function' && e.target.matches('input, select, textarea, [contenteditable]')) return;
     const td = document.querySelector('td.sel');
-    if(!td) return;
+    if(!td){
+      if(e.key==='Backspace' || e.key==='Delete'){
+        console.log('[DJJ kbd] Backspace/Delete pressed but NO cell selected');
+      }
+      return;
+    }
     const sh = SHEETS.find(s=>s.key===STATE.sheetKey);
     if(!sh || sh.kind!=='data') return;
 
     const key = e.key;
+    if(key==='Backspace' || key==='Delete'){
+      console.log('[DJJ kbd]', key, 'with cell selected — handling delete');
+    }
     if(key==='Backspace' || key==='Delete'){
       e.preventDefault();
       e.stopPropagation();
@@ -1096,6 +1110,7 @@ function init(){
       return;
     }
     if(key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
+      console.log('[DJJ kbd] direct typing key=', JSON.stringify(key), '→ begin edit');
       e.preventDefault();
       beginEditData(sh, td, key);
       return;
@@ -1579,8 +1594,12 @@ function attachDataHandlers(sh){
       e.preventDefault();
       const addRow = e.target.closest('tr.addrow');
       const m = addRow ? (addRow.dataset.month || STATE.month) : STATE.month;
+      console.log('[DJJ ➕]', 'clicked', 'addRow=', !!addRow, 'month=', m, 'sheet=', sh.key,
+        'rowsBefore=', getMonthRows(m, sh.key).length);
       addMonthRow(m, sh.key);
+      console.log('[DJJ ➕] addMonthRow done, rowsAfter=', getMonthRows(m, sh.key).length);
       renderSheet();
+      console.log('[DJJ ➕] renderSheet done');
       return;
     }
     // − delete row
